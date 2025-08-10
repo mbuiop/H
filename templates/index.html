@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>سامانه آگهی کار</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Arial', sans-serif; }
+        .notification { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background-color: #10b981; color: white; }
+        .employer_notification { background-color: #3b82f6; color: white; }
+        .seeker_notification { background-color: #f59e0b; color: white; }
+        .public_message { background-color: #ef4444; color: white; }
+        .nav-fixed { position: fixed; bottom: 0; width: 100%; z-index: 10; }
+    </style>
+</head>
+<body class="bg-gray-100 pb-16">
+    <div class="container mx-auto mt-6 p-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="notification {{ category }}">{{ message|safe }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% if show_form %}
+            <h1 class="text-2xl font-bold mb-4">ثبت آگهی کار</h1>
+            <form method="POST" class="bg-white p-6 rounded shadow-md">
+                <div class="mb-4">
+                    <label class="block text-gray-700">نوع کاربر</label>
+                    <select name="user_type" class="w-full p-2 border rounded">
+                        <option value="seeker">جویای کار</option>
+                        <option value="employer">کارفرما</option>
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700">دسته‌بندی شغل</label>
+                    <select name="category" class="w-full p-2 border rounded">
+                        {% for category in categories %}
+                            <option value="{{ category }}">{{ category }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700">توضیحات (سابقه کار یا نیاز)</label>
+                    <textarea name="description" class="w-full p-2 border rounded" rows="4" required></textarea>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700">شماره تماس</label>
+                    <input type="text" name="phone" class="w-full p-2 border rounded" required>
+                </div>
+                <button type="submit" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">ثبت</button>
+            </form>
+        {% endif %}
+
+        {% if show_list %}
+            <h1 class="text-2xl font-bold mb-4">آگهی‌های موجود</h1>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <h2 class="text-xl font-semibold mb-2">جویای کار</h2>
+                    {% for job in seekers %}
+                        <div class="bg-white p-4 rounded shadow-md mb-2">
+                            <p><strong>دسته:</strong> {{ job.category }}</p>
+                            <p><strong>توضیحات:</strong> {{ job.description }}</p>
+                            <p><strong>شماره تماس:</strong> {{ job.phone }}</p>
+                        </div>
+                    {% endfor %}
+                </div>
+                <div>
+                    <h2 class="text-xl font-semibold mb-2">کارفرما</h2>
+                    <div>
+                    {% for job in employers %}
+                        <div class="bg-white p-4 rounded shadow-md mb-2">
+                            <p><strong>دسته:</strong> {{ job.category }}</p>
+                            <p><strong>توضیحات:</strong> {{ job.description }}</p>
+                            <p><strong>شماره تماس:</strong> {{ job.phone }}</p>
+                        </div>
+                    {% endfor %}
+                </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    <nav class="bg-blue-600 p-4 nav-fixed">
+        <div class="container mx-auto flex justify-center space-x-4">
+            <a href="{{ url_for('post_job') }}" class="flex items-center text-white bg-blue-800 px-4 py-2 rounded hover:bg-blue-900">
+                <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                </svg>
+                ثبت آگهی کار
+            </a>
+            <a href="{{ url_for('job_list') }}" class="flex items-center text-white bg-blue-800 px-4 py-2 rounded hover:bg-blue-900">
+                <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                </svg>
+                آگهی کارهای موجود
+            </a>
+        </div>
+    </nav>
+</body>
+</html>
