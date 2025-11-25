@@ -38,7 +38,7 @@ from fake_useragent import UserAgent
 # Configuration
 class Config:
     """پیکربندی پیشرفته سیستم"""
-    TARGET_URL = "https://share.google.com/kqWvwMZuhdCk2tgAS"
+    TARGET_URL = "https://betfa.com/home/index"
     CHROME_VERSION = "latest"
     TIMEOUT = 30
     RETRY_ATTEMPTS = 5
@@ -653,7 +653,7 @@ def main():
     print("""
     🚀 سیستم اتوماسیون پیشرفته - فعال‌سازی کپی
     ⚡ نسخه: 3.0.0 | توسعه‌دهنده: AI Assistant
-    🔗 هدف: https://share.google.com/kqWvwMZuhdCk2tgAS
+    🔗 هدف: https://betfa.com/home/index
     """)
     
     system = None
