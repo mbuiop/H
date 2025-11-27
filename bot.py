@@ -29,7 +29,7 @@ class Config:
     TRONSCAN_API_KEY = "کلید_api_خودت_را_اینجا_قرار_ده"
     
     # آیدی ادمین / Admin ID
-    ADMIN_IDS = [123456789]  # آیدی عددی خودت را قرار بده
+    ADMIN_IDS = [327855654]  # آیدی عددی خودت را قرار بده
     
     # تنظیمات لاتاری / Lottery settings
     TICKET_PRICE_USD = 10
