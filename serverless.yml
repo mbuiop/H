@@ -1,0 +1,24 @@
+service: telegram-bot-webhook
+provider:
+  name: aws
+  runtime: python3.12
+  region: eu-central-1
+  timeout: 20
+  environment:
+    BOT_TOKEN: ${env:BOT_TOKEN}
+
+functions:
+  bot:
+    handler: lambda_handler.lambda_handler
+    events:
+      - http:
+          path: /
+          method: post
+          cors: true
+
+plugins:
+  - serverless-python-requirements
+
+custom:
+  pythonRequirements:
+    dockerizePip: true
