@@ -1,0 +1,8 @@
+{
+  "name": "invoice-platform",
+  "version": "1.0.0",
+  "description": "فاکتور ساز آنلاین با امضای متقابل و گفتگوی خصوصی بین فروشنده و خریدار",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" }
+}
