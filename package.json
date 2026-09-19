@@ -1,8 +1,8 @@
 {
   "name": "invoice-platform",
-  "version": "1.0.0",
-  "description": "فاکتور ساز آنلاین با امضای متقابل و گفتگوی خصوصی بین فروشنده و خریدار",
+  "version": "2.0.0",
+  "description": "فاکتور ساز آنلاین با دیتابیس SQLite، امضای متقابل، و گفتگوی خصوصی بین فروشنده و خریدار",
   "main": "server.js",
   "scripts": { "start": "node server.js" },
-  "engines": { "node": ">=18" }
+  "engines": { "node": ">=22" }
 }
