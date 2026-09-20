@@ -81,7 +81,7 @@ db.exec(`
     share_token TEXT,
     lines TEXT NOT NULL,
     subtotal REAL DEFAULT 0, discount REAL DEFAULT 0, tax_rate REAL DEFAULT 0, tax REAL DEFAULT 0, total REAL DEFAULT 0,
-    terms TEXT, payment_method TEXT,
+    terms TEXT, payment_method TEXT, note TEXT,
     seller_signature TEXT, seller_stamp TEXT, buyer_signature TEXT,
     status TEXT NOT NULL DEFAULT 'pending_buyer',
     created_at INTEGER, seller_signed_at INTEGER, buyer_signed_at INTEGER
@@ -108,6 +108,14 @@ db.exec(`
     read INTEGER NOT NULL DEFAULT 0
   );
   CREATE INDEX IF NOT EXISTS idx_notif_user ON notifications(to_user_id);
+
+  CREATE TABLE IF NOT EXISTS stores (
+    user_id TEXT PRIMARY KEY,
+    name TEXT,
+    category TEXT,
+    description TEXT,
+    photos TEXT NOT NULL DEFAULT '[]'
+  );
 `);
 
 const stmt = {
@@ -134,8 +142,8 @@ const stmt = {
 
   insertInvoice: db.prepare(`INSERT INTO invoices
     (id, number, seller_id, buyer_id, buyer_contact_id, share_token, lines, subtotal, discount, tax_rate, tax, total,
-     terms, payment_method, seller_signature, seller_stamp, buyer_signature, status, created_at, seller_signed_at, buyer_signed_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'pending_buyer', ?, ?, NULL)`),
+     terms, payment_method, note, seller_signature, seller_stamp, buyer_signature, status, created_at, seller_signed_at, buyer_signed_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'pending_buyer', ?, ?, NULL)`),
   getInvoice: db.prepare('SELECT * FROM invoices WHERE id = ?'),
   listSales: db.prepare('SELECT * FROM invoices WHERE seller_id = ? ORDER BY created_at DESC'),
   listPurchases: db.prepare('SELECT * FROM invoices WHERE buyer_id = ? ORDER BY created_at DESC'),
@@ -150,6 +158,11 @@ const stmt = {
   listNotifications: db.prepare('SELECT * FROM notifications WHERE to_user_id = ? ORDER BY created_at DESC LIMIT 50'),
   markNotifRead: db.prepare('UPDATE notifications SET read = 1 WHERE id = ? AND to_user_id = ?'),
   markAllNotifRead: db.prepare('UPDATE notifications SET read = 1 WHERE to_user_id = ?'),
+
+  getStore: db.prepare('SELECT * FROM stores WHERE user_id = ?'),
+  insertEmptyStore: db.prepare("INSERT OR IGNORE INTO stores (user_id, name, category, description, photos) VALUES (?, '', '', '', '[]')"),
+  updateStoreInfo: db.prepare('UPDATE stores SET name = ?, category = ?, description = ? WHERE user_id = ?'),
+  updateStorePhotos: db.prepare('UPDATE stores SET photos = ? WHERE user_id = ?'),
 };
 
 /* ============================================================
@@ -253,7 +266,7 @@ function invoiceRowView(inv, forUserId){
     sellerName: seller && seller.business_name, buyerName: buyer ? buyer.business_name : (contact && contact.name),
     lines: JSON.parse(inv.lines), subtotal: inv.subtotal, discount: inv.discount,
     taxRate: inv.tax_rate, tax: inv.tax, total: inv.total,
-    terms: inv.terms, paymentMethod: inv.payment_method,
+    terms: inv.terms, paymentMethod: inv.payment_method, note: inv.note,
     sellerSignature: inv.seller_signature, sellerStamp: inv.seller_stamp, buyerSignature: inv.buyer_signature,
     status: inv.status, createdAt: inv.created_at,
   };
@@ -374,7 +387,7 @@ route('POST', '/api/invoices', {}, async (req, res, params, ip, user) => {
   stmt.insertInvoice.run(
     id, number, user.id, buyerUser ? buyerUser.id : null, contact.id, shareToken,
     JSON.stringify(body.lines), body.subtotal || 0, body.discount || 0, body.taxRate || 0, body.tax || 0, body.total || 0,
-    body.terms || '', body.paymentMethod || '', user.signature || null, user.stamp || null,
+    body.terms || '', body.paymentMethod || '', body.note || '', user.signature || null, user.stamp || null,
     now, now
   );
   const shareLink = buyerUser ? null : ('/?sign=' + id + '&t=' + shareToken);
@@ -420,7 +433,7 @@ route('GET', '/api/public/invoices/:id', { auth: false }, (req, res, params) => 
   send(res, 200, {
     number: inv.number, sellerName: seller && seller.business_name, buyerName: contact && contact.name,
     lines: JSON.parse(inv.lines), subtotal: inv.subtotal, discount: inv.discount, taxRate: inv.tax_rate, tax: inv.tax, total: inv.total,
-    terms: inv.terms, paymentMethod: inv.payment_method,
+    terms: inv.terms, paymentMethod: inv.payment_method, note: inv.note,
     sellerSignature: inv.seller_signature, sellerStamp: inv.seller_stamp, status: inv.status,
   });
 });
@@ -484,6 +497,48 @@ route('GET', '/api/conversations', {}, (req, res, params, ip, user) => {
     return { username: u.username, businessName: u.business_name, lastMessage: last ? last.text : null, lastAt: last ? last.created_at : 0 };
   }).filter(Boolean).sort((a, b) => b.lastAt - a.lastAt);
   send(res, 200, { conversations: list });
+});
+
+/* ============================================================
+   فروشگاه من — مثل کانال، حداکثر ۱۰ عکس
+   ============================================================ */
+const MAX_STORE_PHOTOS = 10;
+function ensureStore(userId){
+  stmt.insertEmptyStore.run(userId);
+  return stmt.getStore.get(userId);
+}
+route('GET', '/api/store', {}, (req, res, params, ip, user) => {
+  const s = ensureStore(user.id);
+  send(res, 200, { name: s.name, category: s.category, description: s.description, photos: JSON.parse(s.photos) });
+});
+route('PUT', '/api/store', {}, async (req, res, params, ip, user) => {
+  ensureStore(user.id);
+  const { name, category, description } = await readBody(req);
+  stmt.updateStoreInfo.run(name || '', category || '', description || '', user.id);
+  send(res, 200, { ok: true });
+});
+route('POST', '/api/store/photos', {}, async (req, res, params, ip, user) => {
+  const s = ensureStore(user.id);
+  const photos = JSON.parse(s.photos);
+  const { photo, replaceIndex } = await readBody(req);
+  if (!photo) return send(res, 400, { error: 'عکسی نیومد' });
+  if (typeof replaceIndex === 'number' && replaceIndex >= 0 && replaceIndex < photos.length){
+    photos[replaceIndex] = photo;
+  } else {
+    if (photos.length >= MAX_STORE_PHOTOS) return send(res, 400, { error: 'حداکثر ۱۰ عکس مجازه — اول یکی رو پاک کن یا جاش رو عوض کن' });
+    photos.push(photo);
+  }
+  stmt.updateStorePhotos.run(JSON.stringify(photos), user.id);
+  send(res, 200, { photos });
+});
+route('DELETE', '/api/store/photos/:index', {}, (req, res, params, ip, user) => {
+  const s = ensureStore(user.id);
+  const photos = JSON.parse(s.photos);
+  const idx = parseInt(params.index, 10);
+  if (isNaN(idx) || idx < 0 || idx >= photos.length) return send(res, 404, { error: 'پیدا نشد' });
+  photos.splice(idx, 1);
+  stmt.updateStorePhotos.run(JSON.stringify(photos), user.id);
+  send(res, 200, { photos });
 });
 
 route('GET', '/api/health', { auth: false }, (req, res) => send(res, 200, { ok: true, time: Date.now() }));

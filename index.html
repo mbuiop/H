@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>فاکتور ساز آنلاین</title>
+<meta name="theme-color" content="#108f9f">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#108f9f; --bg-2:#0c7683; --card:#0b6b78; --card-2:#0a5f6a;
+    --line:rgba(255,255,3,0.28); --text:#ffffff; --text-secondary:#d6f2f5; --text-dim:#9bd0d6;
+    --pistachio:#a3cc86; --pistachio-2:#c3e2a0; --pistachio-dk:#729450;
+    --pistachio-gradient:linear-gradient(180deg,#c3e2a0,#a3cc86 55%,#8bb56d);
+    --green:#4dff28; --green-dk:#2fb812; --red:#ff6424; --red-dk:#cc4d17; --blue:#ffff03;
+    --radius:16px; --radius-sm:12px; --shadow:0 8px 32px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html, body{overflow-x:hidden; width:100%;}
+  body{ font-family:'Vazirmatn', Tahoma, sans-serif; background:var(--bg); color:var(--text); min-height:100vh; padding:0 0 90px; line-height:1.75; }
+  .container{max-width:520px; margin:0 auto; padding:16px 18px 0; width:100%;}
+  header{display:flex; justify-content:space-between; align-items:center; padding:6px 0 16px;}
+  .logo{font-size:19px; font-weight:800;}
+  .logo span{color:var(--pistachio);}
+  .icon-btn{background:var(--bg-2); border:1px solid var(--line); color:var(--text); width:40px; height:40px; border-radius:50%; font-size:16px; cursor:pointer;}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; margin-bottom:14px; box-shadow:var(--shadow);}
+  .card-title{font-size:14.5px; font-weight:700; margin-bottom:10px;}
+  .tabs{display:flex; gap:6px; margin-bottom:14px; background:var(--bg-2); border-radius:var(--radius-sm); padding:4px;}
+  .tabs button{flex:1; padding:10px; border:none; border-radius:9px; background:transparent; color:var(--text-secondary); font-family:inherit; font-weight:700; font-size:12.5px; cursor:pointer;}
+  .tabs button.active{background:var(--pistachio-gradient); color:#1c3410;}
+  .form-group{margin-bottom:12px;}
+  .form-group label{display:block; font-size:11.5px; color:var(--text-secondary); margin-bottom:5px;}
+  .form-group input, .form-group select, .form-group textarea{width:100%; padding:12px 14px; background:var(--bg-2); border:1px solid var(--line); border-radius:var(--radius-sm); color:var(--text); font-family:inherit; font-size:14px;}
+  .form-group input:focus, .form-group textarea:focus{outline:none; border-color:var(--pistachio);}
+  .form-row{display:grid; grid-template-columns:1fr 1fr; gap:10px; min-width:0;}
+  .form-row > *{min-width:0;}
+  .btn{padding:13px 20px; border:none; border-radius:var(--radius-sm); font-family:inherit; font-size:14px; font-weight:700; cursor:pointer; transition:transform .1s ease, box-shadow .1s ease; display:inline-flex; align-items:center; justify-content:center; gap:8px; width:100%;}
+  .btn-primary{background:var(--pistachio-gradient); color:#1c3410; border:1px solid var(--pistachio-dk); box-shadow:0 4px 0 var(--pistachio-dk), 0 7px 14px rgba(0,0,0,.28);}
+  .btn-primary:active{transform:translateY(4px); box-shadow:0 0 0 var(--pistachio-dk);}
+  .btn-outline{background:var(--bg-2); color:var(--pistachio-dk); border:1px solid var(--pistachio-dk); box-shadow:0 3px 0 var(--pistachio-dk);}
+  .btn-outline:active{transform:translateY(3px); box-shadow:0 0 0 var(--pistachio-dk);}
+  .btn-sm{padding:8px 14px; font-size:12px; width:auto;}
+  .empty-note{text-align:center; color:var(--text-dim); font-size:13px; padding:20px 0;}
+  .note{font-size:11.5px; color:var(--text-dim); margin-top:-4px; margin-bottom:10px;}
+  .inv-row{background:var(--bg-2); border:1px solid var(--line); border-radius:var(--radius-sm); padding:13px 14px; margin-bottom:9px; cursor:pointer;}
+  .inv-row .top{display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;}
+  .inv-row .num{font-weight:800; font-size:14px;}
+  .inv-row .party{font-size:12px; color:var(--text-secondary); margin-top:3px; overflow-wrap:break-word;}
+  .badge{font-size:10px; padding:3px 10px; border-radius:999px; font-weight:700;}
+  .badge.pending{background:rgba(255,255,3,.15); color:var(--blue);}
+  .badge.complete{background:rgba(77,255,40,.15); color:var(--green);}
+  .conv-row{display:flex; justify-content:space-between; align-items:center; background:var(--bg-2); border:1px solid var(--line); border-radius:var(--radius-sm); padding:13px 14px; margin-bottom:9px; cursor:pointer; gap:10px;}
+  .conv-row .info{min-width:0; flex:1;}
+  .conv-row .name{font-weight:700; font-size:13.5px;}
+  .conv-row .last{font-size:11.5px; color:var(--text-dim); margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .fab{position:fixed; bottom:24px; left:50%; transform:translateX(-50%); width:calc(100% - 36px); max-width:484px; z-index:60;}
+  .modal-overlay{position:fixed; inset:0; background:rgba(0,0,0,.75); backdrop-filter:blur(6px); display:none; align-items:flex-end; justify-content:center; z-index:200;}
+  .modal-overlay.show{display:flex;}
+  .modal-content{background:var(--card); width:100%; max-width:520px; max-height:92vh; overflow-y:auto; border-radius:22px 22px 0 0; padding:22px 20px 30px; position:relative; border:1px solid var(--line);}
+  .close-modal{position:absolute; top:14px; left:14px; background:var(--bg-2); border:none; width:32px; height:32px; border-radius:50%; color:var(--text); font-size:15px; cursor:pointer;}
+  .modal-title{font-size:16.5px; font-weight:800; margin-bottom:16px;}
+  .line-row{display:grid; grid-template-columns:1.3fr .5fr .7fr auto; gap:5px; margin-bottom:8px; min-width:0;}
+  .line-row > *{min-width:0;}
+  .line-row input{padding:9px 6px; font-size:12px; width:100%;}
+  .rm-line{background:none; border:none; color:var(--text-dim); font-size:16px; cursor:pointer;}
+  .sig-pad-wrap{position:relative; border:2px dashed var(--line); border-radius:var(--radius-sm); background:#fff; margin-bottom:12px; overflow:hidden;}
+  .sig-pad-wrap canvas{width:100%; height:130px; display:block; touch-action:none; cursor:crosshair;}
+  .total-box{text-align:center; margin:14px 0;}
+  .total-box .label{font-size:12px; color:var(--text-secondary);}
+  .total-box .value{font-size:24px; font-weight:900; color:var(--pistachio-2);}
+  .detail-line{display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); font-size:13px;}
+  .sig-preview{width:150px; border:1px solid var(--line); border-radius:8px; background:#fff; display:block; margin-top:6px;}
+  .chat-thread{max-height:50vh; overflow-y:auto; margin-bottom:12px; display:flex; flex-direction:column; gap:8px;}
+  .msg{max-width:75%; padding:9px 13px; border-radius:14px; font-size:13px; line-height:1.6;}
+  .msg.me{align-self:flex-start; background:var(--pistachio-gradient); color:#1c3410; border-bottom-left-radius:4px;}
+  .msg.them{align-self:flex-end; background:var(--bg-2); border:1px solid var(--line); border-bottom-right-radius:4px;}
+  .chat-input-row{display:flex; gap:8px;}
+  .chat-input-row input{flex:1;}
+  .toast{position:fixed; bottom:100px; left:50%; transform:translateX(-50%) translateY(20px); background:#0b2e33; color:#fff; padding:12px 22px; border-radius:999px; font-size:13px; z-index:300; opacity:0; transition:.3s; pointer-events:none;}
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+  .spinner{display:inline-block; width:14px; height:14px; border:2px solid var(--text-dim); border-top-color:var(--pistachio); border-radius:50%; animation:spin .7s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .stat-row{display:flex; gap:10px; margin-bottom:14px;}
+  .stat{flex:1; background:var(--card); border:1px solid var(--line); border-radius:var(--radius-sm); padding:12px; text-align:center;}
+  .stat .n{font-size:20px; font-weight:800;}
+  .stat .l{font-size:10.5px; color:var(--text-dim); margin-top:2px;}
+
+  /* bottom nav — layered, glowing modern icons */
+  .bottom-nav{position:fixed; bottom:0; left:0; right:0; display:flex; background:var(--card); border-top:1px solid var(--line); padding:9px 10px calc(9px + env(safe-area-inset-bottom)); z-index:150; box-shadow:0 -10px 30px rgba(0,0,0,.35); max-width:520px; margin:0 auto;}
+  .bottom-nav button{flex:1; background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:5px; padding:4px 0; cursor:pointer; color:var(--text-dim); font-family:inherit;}
+  .bn-icon-wrap{position:relative; width:46px; height:46px; border-radius:15px; display:flex; align-items:center; justify-content:center; font-size:20px; background:var(--bg-2); border:1px solid var(--line); transition:transform .15s ease, background .2s ease, box-shadow .2s ease;}
+  .bn-icon-wrap::before{content:''; position:absolute; inset:-6px; border-radius:18px; background:var(--pistachio-gradient); opacity:0; filter:blur(10px); transition:opacity .2s ease; z-index:-1;}
+  .bottom-nav button.active .bn-icon-wrap{background:var(--pistachio-gradient); border-color:var(--pistachio-dk); box-shadow:0 4px 0 var(--pistachio-dk), 0 8px 18px rgba(0,0,0,.32); transform:translateY(-2px);}
+  .bottom-nav button.active .bn-icon-wrap::before{opacity:.55;}
+  .bottom-nav button:active .bn-icon-wrap{transform:translateY(1px);}
+  .bn-label{font-size:10.5px; font-weight:700;}
+  .bottom-nav button.active .bn-label{color:var(--pistachio-2);}
+
+  /* store photo grid */
+  .store-grid{display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-top:14px;}
+  .store-slot{aspect-ratio:1; border-radius:12px; border:2px dashed var(--line); display:flex; align-items:center; justify-content:center; font-size:26px; color:var(--text-dim); cursor:pointer; overflow:hidden; position:relative; background:var(--bg-2);}
+  .store-slot img{width:100%; height:100%; object-fit:cover; display:block;}
+  .store-slot .slot-del{position:absolute; top:4px; left:4px; width:22px; height:22px; border-radius:50%; background:rgba(0,0,0,.55); color:#fff; border:none; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center;}
+</style>
+</head>
+<body>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal-overlay show" id="loginOverlay">
+  <div class="modal-content" style="border-radius:22px; max-width:400px;">
+    <div class="modal-title">🧾 فاکتور ساز آنلاین</div>
+    <div class="note" style="margin-bottom:14px;">حساب کسب‌وکارت رو بساز، به مشتری/فروشنده‌ت با نام کاربری وصل شو، فاکتور بده، آنلاین امضا بگیر.</div>
+    <div class="form-group"><label>نام کاربری (یکتا، بدون فاصله)</label><input type="text" id="authUsername" autocomplete="username"></div>
+    <div class="form-group" id="bizNameWrap" style="display:none;"><label>نام کسب‌وکار/فروشگاه</label><input type="text" id="authBizName"></div>
+    <div class="form-group"><label>رمز عبور</label><input type="password" id="authPassword" autocomplete="current-password"></div>
+    <button class="btn btn-primary" id="loginBtn">ورود</button>
+    <button class="btn btn-outline" id="registerBtn" style="margin-top:8px;">ساخت حساب جدید</button>
+    <div class="note" id="authError" style="color:var(--red); text-align:center; margin-top:10px;"></div>
+  </div>
+</div>
+
+<div class="container" id="appRoot" style="display:none;">
+  <header>
+    <div class="logo">فاکتور <span>آنلاین</span></div>
+    <div style="display:flex; gap:8px;">
+      <button class="icon-btn" id="contactsBtn" style="position:relative;">👥</button>
+      <button class="icon-btn" id="notifBtn" style="position:relative;">🔔<span id="notifDot" style="display:none; position:absolute; top:6px; left:6px; width:9px; height:9px; background:var(--red); border-radius:50%;"></span></button>
+      <button class="icon-btn" id="settingsBtn">⚙️</button>
+    </div>
+  </header>
+
+  <!-- ===== PAGE: invoices ===== -->
+  <div id="pageInvoices">
+    <div class="stat-row">
+      <div class="stat"><div class="n" id="statSales">۰</div><div class="l">فروش من</div></div>
+      <div class="stat"><div class="n" id="statPurchases">۰</div><div class="l">خرید من</div></div>
+      <div class="stat"><div class="n" id="statPending">۰</div><div class="l">در انتظار امضا</div></div>
+    </div>
+    <button class="btn btn-primary" id="newInvoiceBtn" style="margin-bottom:14px;">+ فاکتور جدید</button>
+    <div class="tabs" id="mainTabs">
+      <button class="active" data-tab="sales">فاکتورهای فروش</button>
+      <button data-tab="purchases">فاکتورهای خرید</button>
+    </div>
+    <div id="tabSales"><div class="empty-note">در حال بارگذاری...</div></div>
+    <div id="tabPurchases" style="display:none;"><div class="empty-note">در حال بارگذاری...</div></div>
+  </div>
+
+  <!-- ===== PAGE: chat ===== -->
+  <div id="pageChats" style="display:none;">
+    <div class="card-title" style="margin-bottom:12px;">💬 پیام‌ها</div>
+    <div id="tabChats"><div class="empty-note">در حال بارگذاری...</div></div>
+  </div>
+
+  <!-- ===== PAGE: my store ===== -->
+  <div id="pageStore" style="display:none;">
+    <div class="card-title" style="margin-bottom:12px;">🏪 فروشگاه من</div>
+    <div class="form-group"><label>نام فروشگاه</label><input type="text" id="stName" placeholder="مثلاً فروشگاه پارسیان"></div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>صنف</label>
+        <select id="stCategory">
+          <option value="پوشاک">پوشاک</option>
+          <option value="ابزار">ابزار</option>
+          <option value="خوراکی">خوراکی</option>
+          <option value="لوازم خانه">لوازم خانه</option>
+          <option value="موبایل و دیجیتال">موبایل و دیجیتال</option>
+          <option value="سایر">سایر</option>
+        </select>
+      </div>
+      <div class="form-group"><label>توضیح کوتاه</label><input type="text" id="stDescription"></div>
+    </div>
+    <button class="btn btn-outline" id="saveStoreInfoBtn" style="margin-bottom:18px;">ذخیره‌ی اطلاعات فروشگاه</button>
+    <div class="note" style="margin-top:0;">حداکثر ۱۰ عکس. برای عکس جدید بعد از پر شدن، اول یکی رو پاک کن یا جاش رو عوض کن.</div>
+    <div class="store-grid" id="storeGrid"></div>
+    <input type="file" id="storePhotoInput" accept="image/*" style="display:none;">
+  </div>
+
+  <div style="height:90px;"></div>
+</div>
+
+<nav class="bottom-nav" id="bottomNav">
+  <button class="active" data-page="invoices"><span class="bn-icon-wrap"><span>🧾</span></span><span class="bn-label">ایجاد فاکتور</span></button>
+  <button data-page="chats"><span class="bn-icon-wrap"><span>💬</span></span><span class="bn-label">پیام</span></button>
+  <button data-page="store"><span class="bn-icon-wrap"><span>🏪</span></span><span class="bn-label">فروشگاه من</span></button>
+</nav>
+
+<!-- ============ Settings / signature & stamp ============ -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal-content">
+    <button class="close-modal" id="closeSettingsModal">✕</button>
+    <div class="modal-title">⚙️ تنظیمات حساب</div>
+    <div class="form-group"><label>نام کسب‌وکار</label><input type="text" id="settingsBizName"></div>
+    <button class="btn btn-outline" id="saveBizNameBtn">ذخیره‌ی نام</button>
+    <div class="note" style="margin-top:18px; margin-bottom:0;">امضات رو یه‌بار اینجا بکش و ذخیره کن — از این به بعد رو هر فاکتوری که بزنی یا امضا کنی خودکار میاد، دیگه لازم نیست هر بار دوباره بکشی.</div>
+    <h4 style="font-size:12px; color:var(--pistachio-dk); margin:14px 0 8px;">امضا</h4>
+    <div class="sig-pad-wrap"><canvas id="settingsSigPad" width="400" height="130"></canvas>
+      <button class="btn btn-sm btn-outline" id="clearSettingsSigBtn" style="position:absolute; top:8px; left:8px; width:auto; padding:6px 12px; font-size:11px;">پاک کردن</button></div>
+    <div id="currentSigPreviewWrap"></div>
+    <button class="btn btn-primary" id="saveSigBtn">ذخیره‌ی امضا</button>
+    <button class="btn btn-outline" id="logoutBtn" style="margin-top:20px;">🚪 خروج از حساب</button>
+  </div>
+</div>
+
+<!-- ============ New invoice ============ -->
+<div class="modal-overlay" id="contactsModal">
+  <div class="modal-content">
+    <button class="close-modal" id="closeContactsModal">✕</button>
+    <div class="modal-title">👥 مشتری‌های من</div>
+    <div class="note" style="margin-bottom:14px;">هر چقدر دلت خواست مشتری اضافه کن. اگه مشتری خودش تو این سایت حساب داره، نام کاربریش رو هم بزن تا فاکتور مستقیم تو حساب خودش بیفته؛ وگرنه بدون اون هم می‌تونی اضافه‌ش کنی و یه لینک براش بفرستی.</div>
+    <div class="form-group"><label>نام مشتری</label><input type="text" id="ctName" placeholder="مثلاً سعید کنعانی"></div>
+    <div class="form-row">
+      <div class="form-group"><label>تلفن (اختیاری)</label><input type="text" id="ctPhone"></div>
+      <div class="form-group"><label>نام کاربری (اختیاری)</label><input type="text" id="ctUsername" placeholder="اگه تو سایت حساب داره"></div>
+    </div>
+    <button class="btn btn-primary" id="addContactBtn">+ افزودن مشتری</button>
+    <div id="contactsList" style="margin-top:16px;"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="notifModal">
+  <div class="modal-content">
+    <button class="close-modal" id="closeNotifModal">✕</button>
+    <div class="modal-title">🔔 اعلان‌ها</div>
+    <div id="notifList"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="shareLinkModal">
+  <div class="modal-content">
+    <button class="close-modal" id="closeShareLinkModal">✕</button>
+    <div class="modal-title">🔗 لینک فاکتور آماده شد</div>
+    <div class="note" style="margin-top:0;">این مشتری هنوز تو سایت حساب نداره. این لینک رو براش بفرست (تلگرام/واتساپ/پیامک) — بدون نیاز به ورود، فاکتور رو می‌بینه و امضا می‌کنه.</div>
+    <div class="form-group"><input type="text" id="shareLinkInput" readonly style="text-align:left; direction:ltr; font-size:11.5px;"></div>
+    <button class="btn btn-primary" id="copyShareLinkBtn">📋 کپی لینک</button>
+    <button class="btn btn-outline" id="nativeShareBtn" style="margin-top:8px;">📤 اشتراک‌گذاری</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="newInvoiceModal">
+  <div class="modal-content">
+    <button class="close-modal" id="closeNewInvoiceModal">✕</button>
+    <div class="modal-title">🧾 فاکتور جدید</div>
+    <div class="form-group">
+      <label>مشتری</label>
+      <select id="niContactSelect"><option value="">— انتخاب کن —</option></select>
+    </div>
+    <div class="note" id="buyerCheckNote"></div>
+    <h4 style="font-size:12px; color:var(--pistachio-dk); margin:14px 0 8px;">اقلام فاکتور</h4>
+    <div id="niLinesWrap"></div>
+    <button class="btn btn-outline" id="niAddLineBtn" style="margin-bottom:14px;">+ افزودن قلم</button>
+    <div class="form-row">
+      <div class="form-group"><label>مالیات (٪)</label><input type="number" id="niTaxRate" value="9" min="0"></div>
+      <div class="form-group">
+        <label>روش پرداخت</label>
+        <select id="niPaymentMethod"><option value="نقدی">نقدی</option><option value="کارت‌خوان">کارت‌خوان</option><option value="انتقال بانکی">انتقال بانکی</option><option value="چک">چک</option></select>
+      </div>
+    </div>
+    <div class="form-group"><label>شرایط (اختیاری)</label><input type="text" id="niTerms" placeholder="مثلاً ۱۸ ماه گارانتی"></div>
+    <div class="form-group"><label>یادداشت (اختیاری)</label><input type="text" id="niNote" placeholder="یه توضیح برای این فاکتور بنویس"></div>
+    <div class="total-box"><div class="label">جمع کل</div><div class="value" id="niTotal">۰</div></div>
+    <button class="btn btn-primary" id="niSubmitBtn">صدور فاکتور</button>
+  </div>
+</div>
+
+<!-- ============ Invoice detail ============ -->
+<div class="modal-overlay" id="invoiceDetailModal">
+  <div class="modal-content">
+    <button class="close-modal" id="closeInvoiceDetailModal">✕</button>
+    <div id="invoiceDetailBody"></div>
+  </div>
+</div>
+
+<!-- ============ Chat thread ============ -->
+<div class="modal-overlay" id="chatModal">
+  <div class="modal-content">
+    <button class="close-modal" id="closeChatModal">✕</button>
+    <div class="modal-title" id="chatTitle">گفتگو</div>
+    <div class="chat-thread" id="chatThread"></div>
+    <div class="chat-input-row">
+      <input type="text" id="chatInput" placeholder="پیام بنویس...">
+      <button class="btn btn-primary" id="chatSendBtn" style="width:auto; padding:12px 20px;">ارسال</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay show" id="publicSignView" style="align-items:flex-start; background:var(--bg); backdrop-filter:none;">
+  <div class="container" style="padding-top:30px;">
+    <div id="publicSignBody"><div class="empty-note"><span class="spinner"></span> در حال بارگذاری فاکتور...</div></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const API_BASE = '';
+  let token = null, myUsername = null;
+  try { token = localStorage.getItem('inv_token'); myUsername = localStorage.getItem('inv_username'); } catch(err){}
+
+  function faDigits(n){
+    const map = {'0':'۰','1':'۱','2':'۲','3':'۳','4':'۴','5':'۵','6':'۶','7':'۷','8':'۸','9':'۹'};
+    return String(n).replace(/[0-9]/g, d => map[d]);
+  }
+  function money(n){ return faDigits(Math.round(n || 0).toLocaleString('en-US')) + ' تومان'; }
+  function showToast(msg){
+    const t = $('toast'); t.textContent = msg; t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2400);
+  }
+  function openModal(id){ $(id).classList.add('show'); }
+  function closeModal(id){ $(id).classList.remove('show'); }
+  document.querySelectorAll('.modal-overlay').forEach(el => {
+    el.addEventListener('click', e => { if (e.target === el && el.id !== 'loginOverlay') el.classList.remove('show'); });
+  });
+
+  async function api(path, opts){
+    opts = opts || {};
+    const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    const res = await fetch(API_BASE + path, Object.assign({}, opts, { headers }));
+    let body = null;
+    try { body = await res.json(); } catch(err){}
+    if (!res.ok) throw Object.assign(new Error((body && body.error) || 'خطای سرور'), { status: res.status });
+    return body;
+  }
+
+  /* ---------- auth ---------- */
+  let authMode = 'login';
+  $('registerBtn').addEventListener('click', async () => {
+    if (authMode !== 'register'){ authMode = 'register'; $('bizNameWrap').style.display = ''; $('registerBtn').textContent = 'ثبت‌نام'; $('loginBtn').textContent = 'قبلاً حساب دارم؟ ورود'; return; }
+    const username = $('authUsername').value.trim(), password = $('authPassword').value, businessName = $('authBizName').value.trim();
+    if (!username || !password){ $('authError').textContent = 'نام کاربری و رمز رو بنویس'; return; }
+    try {
+      const r = await api('/api/auth/register', { method:'POST', body: JSON.stringify({ username, password, businessName }) });
+      setAuth(r.token, r.username);
+      startApp();
+    } catch(err){ $('authError').textContent = err.message; }
+  });
+  $('loginBtn').addEventListener('click', async () => {
+    if (authMode === 'register'){ authMode = 'login'; $('bizNameWrap').style.display = 'none'; $('registerBtn').textContent = 'ساخت حساب جدید'; $('loginBtn').textContent = 'ورود'; return; }
+    const username = $('authUsername').value.trim(), password = $('authPassword').value;
+    if (!username || !password){ $('authError').textContent = 'نام کاربری و رمز رو بنویس'; return; }
+    try {
+      const r = await api('/api/auth/login', { method:'POST', body: JSON.stringify({ username, password }) });
+      setAuth(r.token, r.username);
+      startApp();
+    } catch(err){ $('authError').textContent = err.message; }
+  });
+  function setAuth(t, u){
+    token = t; myUsername = u;
+    try { localStorage.setItem('inv_token', t); localStorage.setItem('inv_username', u); } catch(err){}
+  }
+  function clearAuth(){
+    token = null; myUsername = null;
+    try { localStorage.removeItem('inv_token'); localStorage.removeItem('inv_username'); } catch(err){}
+  }
+  $('logoutBtn').addEventListener('click', () => { if (confirm('خارج بشی؟')){ clearAuth(); location.reload(); } });
+
+  /* ---------- signature pad (shared logic) ---------- */
+  /* ---------- invoice image generator (modern, full-screen quality) ---------- */
+  function roundRectPath(ctx, x, y, w, h, r){
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+  async function renderInvoiceImage(inv){
+    try { await document.fonts.load('900 30px Vazirmatn'); await document.fonts.load('700 16px Vazirmatn'); await document.fonts.load('400 14px Vazirmatn'); } catch(err){}
+    const scale = 2.5;
+    const W = 860, PAD = 40;
+    const rowH = 66;
+    const NAVY = '#0d3b45', TEAL = '#108f9f', GRAY = '#5c7478', LIGHT = '#eef9fa';
+    let H = 210; // header
+    H += 30 + 80 + 12 + 80 + 20; // seller/buyer boxes
+    H += 50 + inv.lines.length * rowH + 20; // table
+    H += 130; // total box
+    H += inv.note ? 70 : 0;
+    H += inv.terms ? 60 : 0;
+    H += 60; // payment
+    H += 190; // signatures
+    H += 60; // footer
+
+    const canvas = document.createElement('canvas');
+    canvas.width = W * scale; canvas.height = H * scale;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(scale, scale);
+    ctx.direction = 'rtl';
+    const F = (w, s) => w + ' ' + s + 'px Vazirmatn, Tahoma, sans-serif';
+
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+    const grad = ctx.createLinearGradient(0, 0, W, 210);
+    grad.addColorStop(0, NAVY); grad.addColorStop(1, TEAL);
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, W, 210);
+
+    ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.font = F(900, 34);
+    ctx.fillText(inv.label || 'فاکتور', W / 2, 76);
+    ctx.font = F(700, 18);
+    ctx.fillText('شماره ' + faDigits(inv.number), W / 2, 110);
+    ctx.font = F(400, 13); ctx.fillStyle = 'rgba(255,255,255,.85)';
+    ctx.fillText(new Date(inv.createdAt || Date.now()).toLocaleDateString('fa-IR'), W / 2, 136);
+
+    let y = 236;
+    function infoBox(title, name, boxY){
+      ctx.fillStyle = LIGHT; roundRectPath(ctx, PAD, boxY, W - PAD * 2, 80, 14); ctx.fill();
+      ctx.textAlign = 'right'; ctx.fillStyle = TEAL; ctx.font = F(800, 16);
+      ctx.fillText(title, W - PAD - 24, boxY + 34);
+      ctx.fillStyle = NAVY; ctx.font = F(700, 20);
+      ctx.fillText(name || '—', W - PAD - 24, boxY + 62);
+      return boxY + 80;
+    }
+    y = infoBox('فروشنده', inv.sellerName, y) + 16;
+    y = infoBox('خریدار', inv.buyerName, y) + 26;
+
+    const tableW = W - PAD * 2;
+    ctx.fillStyle = NAVY; roundRectPath(ctx, PAD, y, tableW, 50, 12); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = F(700, 15); ctx.textAlign = 'right';
+    ctx.fillText('شرح کالا/خدمت', W - PAD - 20, y + 32);
+    ctx.textAlign = 'left'; ctx.fillText('مبلغ', PAD + 20, y + 32);
+    y += 50;
+
+    inv.lines.forEach((l, i) => {
+      if (i % 2 === 0){ ctx.fillStyle = '#f7fbfb'; ctx.fillRect(PAD, y, tableW, rowH); }
+      ctx.fillStyle = NAVY; ctx.font = F(800, 18); ctx.textAlign = 'right';
+      ctx.fillText(l.name, W - PAD - 20, y + 30);
+      ctx.font = F(400, 13.5); ctx.fillStyle = GRAY;
+      ctx.fillText(faDigits(l.qty) + ' عدد × ' + money(l.price), W - PAD - 20, y + 50);
+      ctx.font = F(900, 19); ctx.fillStyle = TEAL; ctx.textAlign = 'left';
+      ctx.fillText(money(l.net), PAD + 20, y + 40);
+      y += rowH;
+    });
+    y += 18;
+
+    ctx.save();
+    const tGrad = ctx.createLinearGradient(PAD, y, W - PAD, y);
+    tGrad.addColorStop(0, TEAL); tGrad.addColorStop(1, NAVY);
+    roundRectPath(ctx, PAD, y, tableW, 110, 16); ctx.fillStyle = tGrad; ctx.fill();
+    ctx.restore();
+    ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.font = F(700, 15);
+    ctx.fillText('مبلغ کل قابل پرداخت', W / 2, y + 40);
+    ctx.fillStyle = '#fff'; ctx.font = F(900, 34);
+    ctx.fillText(money(inv.total), W / 2, y + 84);
+    y += 110 + 26;
+
+    if (inv.note){
+      ctx.fillStyle = LIGHT; roundRectPath(ctx, PAD, y, tableW, 70, 12); ctx.fill();
+      ctx.textAlign = 'right'; ctx.fillStyle = NAVY; ctx.font = F(700, 14);
+      ctx.fillText('یادداشت:', W - PAD - 20, y + 28);
+      ctx.font = F(400, 14);
+      ctx.fillText(inv.note, W - PAD - 20, y + 52);
+      y += 70 + 16;
+    }
+    if (inv.terms){
+      ctx.fillStyle = LIGHT; roundRectPath(ctx, PAD, y, tableW, 50, 12); ctx.fill();
+      ctx.textAlign = 'right'; ctx.fillStyle = NAVY; ctx.font = F(700, 14);
+      ctx.fillText('شرایط: ' + inv.terms, W - PAD - 20, y + 31);
+      y += 50 + 16;
+    }
+    if (inv.paymentMethod){
+      ctx.textAlign = 'right'; ctx.fillStyle = NAVY; ctx.font = F(700, 15);
+      ctx.fillText('روش پرداخت: ' + inv.paymentMethod, W - PAD, y + 20);
+      y += 46;
+    }
+
+    y += 10;
+    const sigW = (tableW - 20) / 2;
+    function drawSig(label, img, x0){
+      ctx.strokeStyle = '#d6e2e4'; ctx.lineWidth = 1;
+      roundRectPath(ctx, x0, y, sigW, 130, 12); ctx.stroke();
+      ctx.textAlign = 'center'; ctx.fillStyle = GRAY; ctx.font = F(700, 13);
+      ctx.fillText(label, x0 + sigW / 2, y + 20);
+      return new Promise((resolve) => {
+        if (!img){ ctx.font = F(400, 12); ctx.fillText('— هنوز امضا نشده —', x0 + sigW / 2, y + 75); resolve(); return; }
+        const im = new Image();
+        im.onload = () => { ctx.drawImage(im, x0 + 14, y + 30, sigW - 28, 90); resolve(); };
+        im.onerror = () => resolve();
+        im.src = img;
+      });
+    }
+    await drawSig('امضای فروشنده', inv.sellerSignature, PAD);
+    await drawSig('امضای خریدار', inv.buyerSignature, PAD + sigW + 20);
+    y += 150;
+
+    ctx.strokeStyle = '#e5eef0'; ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(W - PAD, y); ctx.stroke();
+    y += 30;
+    ctx.textAlign = 'center'; ctx.fillStyle = GRAY; ctx.font = F(400, 12.5);
+    ctx.fillText('صادر شده با فاکتور آنلاین', W / 2, y);
+
+    return canvas.toDataURL('image/png');
+  }
+  async function downloadInvoiceImage(inv){
+    const dataUrl = await renderInvoiceImage(inv);
+    const a = document.createElement('a');
+    a.download = 'فاکتور-' + faDigits(inv.number) + '.png';
+    a.href = dataUrl;
+    a.click();
+  }
+  async function viewInvoiceImageFullscreen(inv){
+    const dataUrl = await renderInvoiceImage(inv);
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed; inset:0; background:#000; z-index:400; overflow-y:auto; -webkit-overflow-scrolling:touch;';
+    overlay.innerHTML = '<button style="position:fixed; top:16px; left:16px; z-index:410; background:rgba(255,255,255,.18); color:#fff; border:none; width:38px; height:38px; border-radius:50%; font-size:18px;">✕</button>' +
+      '<img src="' + dataUrl + '" style="width:100%; display:block;">';
+    overlay.querySelector('button').addEventListener('click', () => overlay.remove());
+    document.body.appendChild(overlay);
+  }
+
+  function attachSigPad(canvas){
+    const ctx = canvas.getContext('2d');
+    const state = { hasDrawing:false, drawing:false, lastX:0, lastY:0 };
+    function pos(evt){
+      const rect = canvas.getBoundingClientRect();
+      const sx = canvas.width/rect.width, sy = canvas.height/rect.height;
+      const p = evt.touches ? evt.touches[0] : evt;
+      return { x:(p.clientX-rect.left)*sx, y:(p.clientY-rect.top)*sy };
+    }
+    function start(e){ e.preventDefault(); state.drawing=true; const p=pos(e); state.lastX=p.x; state.lastY=p.y; }
+    function move(e){ if(!state.drawing) return; e.preventDefault(); const p=pos(e);
+      ctx.strokeStyle='#0b2e33'; ctx.lineWidth=2.5; ctx.lineCap='round'; ctx.lineJoin='round';
+      ctx.beginPath(); ctx.moveTo(state.lastX,state.lastY); ctx.lineTo(p.x,p.y); ctx.stroke();
+      state.lastX=p.x; state.lastY=p.y; state.hasDrawing=true;
+    }
+    function end(){ state.drawing=false; }
+    canvas.addEventListener('mousedown', start); canvas.addEventListener('mousemove', move); window.addEventListener('mouseup', end);
+    canvas.addEventListener('touchstart', start, {passive:false}); canvas.addEventListener('touchmove', move, {passive:false}); canvas.addEventListener('touchend', end);
+    state.clear = () => { ctx.clearRect(0,0,canvas.width,canvas.height); state.hasDrawing=false; };
+    return state;
+  }
+
+  /* ---------- settings ---------- */
+  const settingsSigState = attachSigPad($('settingsSigPad'));
+  $('clearSettingsSigBtn').addEventListener('click', () => settingsSigState.clear());
+  $('settingsBtn').addEventListener('click', async () => {
+    openModal('settingsModal');
+    try {
+      const me = await api('/api/me');
+      $('settingsBizName').value = me.businessName || '';
+      if (me.hasSignature){
+        const sig = await api('/api/me/signature');
+        $('currentSigPreviewWrap').innerHTML = '<div class="note" style="margin:8px 0 0;">امضای ذخیره‌شده‌ی فعلی:</div><img class="sig-preview" src="' + sig.signature + '">';
+      } else {
+        $('currentSigPreviewWrap').innerHTML = '';
+      }
+    } catch(err){ showToast('⚠️ ' + err.message); }
+  });
+  $('closeSettingsModal').addEventListener('click', () => closeModal('settingsModal'));
+  $('saveBizNameBtn').addEventListener('click', async () => {
+    try { await api('/api/me', { method:'PUT', body: JSON.stringify({ businessName: $('settingsBizName').value.trim() }) }); showToast('✅ ذخیره شد'); }
+    catch(err){ showToast('⚠️ ' + err.message); }
+  });
+  $('saveSigBtn').addEventListener('click', async () => {
+    if (!settingsSigState.hasDrawing){ showToast('⚠️ اول امضا بکش'); return; }
+    try {
+      await api('/api/me/signature', { method:'POST', body: JSON.stringify({ image: $('settingsSigPad').toDataURL('image/png') }) });
+      showToast('✅ امضا ذخیره شد — از این به بعد خودکار میاد');
+      settingsSigState.clear();
+      closeModal('settingsModal');
+    } catch(err){ showToast('⚠️ ' + err.message); }
+  });
+
+  /* ---------- dashboard ---------- */
+  let cachedInvoices = { sales: [], purchases: [] };
+  document.querySelectorAll('#mainTabs button').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('#mainTabs button').forEach(x => x.classList.toggle('active', x === b));
+      ['sales','purchases'].forEach(t => { $('tab' + t[0].toUpperCase() + t.slice(1)).style.display = (t === b.dataset.tab) ? '' : 'none'; });
+    });
+  });
+
+  /* ---------- bottom nav (page switching) ---------- */
+  document.querySelectorAll('#bottomNav button').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('#bottomNav button').forEach(x => x.classList.toggle('active', x === b));
+      ['Invoices','Chats','Store'].forEach(p => { $('page' + p).style.display = (p.toLowerCase() === b.dataset.page) ? '' : 'none'; });
+      if (b.dataset.page === 'chats') loadConversations();
+      if (b.dataset.page === 'store') loadStore();
+    });
+  });
+
+
+  function invoiceRowHtml(inv){
+    const signed = inv.status === 'complete';
+    return '<div class="inv-row" data-id="' + inv.id + '">' +
+      '<div class="top"><span class="num">فاکتور #' + faDigits(inv.number) + '</span>' +
+      '<span class="badge ' + (signed?'complete':'pending') + '">' + (signed?'✅ امضا شده':'🕓 در انتظار') + '</span></div>' +
+      '<div class="party">' + (inv.role === 'seller' ? 'خریدار: ' : 'فروشنده: ') + (inv.counterpartName || inv.counterpartUsername || '—') + ' · ' + money(inv.total) + '</div>' +
+      '</div>';
+  }
+
+  async function loadInvoices(){
+    try {
+      const r = await api('/api/invoices');
+      cachedInvoices = r;
+      $('statSales').textContent = faDigits(r.sales.length);
+      $('statPurchases').textContent = faDigits(r.purchases.length);
+      $('statPending').textContent = faDigits(r.purchases.filter(i => i.status !== 'complete').length);
+      $('tabSales').innerHTML = r.sales.length ? r.sales.slice().reverse().map(invoiceRowHtml).join('') : '<div class="empty-note">هنوز فاکتور فروشی نزدی.</div>';
+      $('tabPurchases').innerHTML = r.purchases.length ? r.purchases.slice().reverse().map(invoiceRowHtml).join('') : '<div class="empty-note">هنوز فاکتور خریدی برات نیومده.</div>';
+      document.querySelectorAll('.inv-row').forEach(el => el.addEventListener('click', () => openInvoiceDetail(el.dataset.id)));
+    } catch(err){
+      $('tabSales').innerHTML = '<div class="empty-note">خطا در دریافت (اتصال اینترنت رو چک کن).</div>';
+    }
+  }
+
+  /* ---------- new invoice ---------- */
+  const MAX_LINES = 8;
+  let lineCount = 0;
+  function addLine(){
+    if (document.querySelectorAll('.line-row').length >= MAX_LINES) return;
+    lineCount++;
+    const row = document.createElement('div'); row.className = 'line-row'; row.id = 'nl' + lineCount;
+    row.innerHTML = '<input type="text" class="l-name" placeholder="نام کالا">' +
+      '<input type="number" class="l-qty" placeholder="تعداد" value="1" min="0">' +
+      '<input type="number" class="l-price" placeholder="قیمت واحد" min="0">' +
+      '<button class="rm-line">✕</button>';
+    row.querySelector('.rm-line').addEventListener('click', () => { row.remove(); updateNiTotal(); });
+    row.querySelectorAll('input').forEach(inp => inp.addEventListener('input', updateNiTotal));
+    $('niLinesWrap').appendChild(row);
+  }
+  function getLines(){
+    return Array.from(document.querySelectorAll('.line-row')).map(row => {
+      const name = row.querySelector('.l-name').value.trim();
+      const qty = parseFloat(row.querySelector('.l-qty').value) || 0;
+      const price = parseFloat(row.querySelector('.l-price').value) || 0;
+      return { name, qty, price, net: qty * price };
+    }).filter(l => l.name && l.qty > 0 && l.price > 0);
+  }
+  function niTotals(){
+    const lines = getLines();
+    const subtotal = lines.reduce((s,l) => s + l.net, 0);
+    const taxRate = parseFloat($('niTaxRate').value) || 0;
+    const tax = subtotal * taxRate / 100;
+    return { lines, subtotal, discount:0, taxRate, tax, total: subtotal + tax };
+  }
+  function updateNiTotal(){ $('niTotal').textContent = money(niTotals().total); }
+  $('niTaxRate').addEventListener('input', updateNiTotal);
+  $('niAddLineBtn').addEventListener('click', addLine);
+  $('newInvoiceBtn').addEventListener('click', async () => {
+    $('niLinesWrap').innerHTML = ''; lineCount = 0; addLine(); addLine();
+    $('niTerms').value = ''; $('niTaxRate').value = '9'; $('niNote').value = '';
+    $('buyerCheckNote').textContent = '';
+    updateNiTotal();
+    try {
+      const me = await api('/api/me');
+      if (!me.hasSignature) $('buyerCheckNote').innerHTML = '⚠️ هنوز امضا ذخیره نکردی — از ⚙️ تنظیمات یه‌بار امضاتو بکش، بعد فاکتورهات خودکار امضادار می‌شن.';
+    } catch(err){}
+    try {
+      const r = await api('/api/contacts');
+      if (!r.contacts.length){
+        $('niContactSelect').innerHTML = '<option value="">مشتری‌ای نداری</option>';
+        showToast('⚠️ اول از 👥 یه مشتری اضافه کن');
+      } else {
+        $('niContactSelect').innerHTML = '<option value="">— انتخاب کن —</option>' +
+          r.contacts.map(c => '<option value="' + c.id + '">' + c.name + (c.linkedUsername ? ' ✅' : ' (بدون حساب)') + '</option>').join('');
+      }
+    } catch(err){}
+    openModal('newInvoiceModal');
+  });
+  $('closeNewInvoiceModal').addEventListener('click', () => closeModal('newInvoiceModal'));
+  $('niSubmitBtn').addEventListener('click', async () => {
+    const t = niTotals();
+    const contactId = $('niContactSelect').value;
+    if (!contactId){ showToast('⚠️ یه مشتری انتخاب کن'); return; }
+    if (!t.lines.length){ showToast('⚠️ حداقل یک قلم کامل وارد کن'); return; }
+    try {
+      const r = await api('/api/invoices', { method:'POST', body: JSON.stringify({
+        contactId, lines:t.lines, subtotal:t.subtotal, discount:t.discount, taxRate:t.taxRate, tax:t.tax, total:t.total,
+        terms: $('niTerms').value.trim(), paymentMethod: $('niPaymentMethod').value, note: $('niNote').value.trim()
+      })});
+      closeModal('newInvoiceModal');
+      loadInvoices();
+      if (r.shareLink){
+        $('shareLinkInput').value = location.origin + r.shareLink;
+        openModal('shareLinkModal');
+      } else {
+        showToast('✅ فاکتور #' + faDigits(r.number) + ' صادر شد و تو حساب مشتری افتاد');
+      }
+    } catch(err){ showToast('⚠️ ' + err.message); }
+  });
+  $('closeShareLinkModal').addEventListener('click', () => closeModal('shareLinkModal'));
+  $('copyShareLinkBtn').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText($('shareLinkInput').value); showToast('📋 کپی شد'); }
+    catch(e){ showToast('⚠️ کپی خودکار ممکن نشد — دستی کپی کن'); }
+  });
+  $('nativeShareBtn').addEventListener('click', async () => {
+    if (navigator.share){ try { await navigator.share({ title:'فاکتور', url: $('shareLinkInput').value }); } catch(e){} }
+    else showToast('⚠️ اشتراک‌گذاری در دسترس نیست — لینک رو کپی کن');
+  });
+
+  /* ---------- contacts (my customers) ---------- */
+  $('contactsBtn').addEventListener('click', () => { openModal('contactsModal'); loadContacts(); });
+  $('closeContactsModal').addEventListener('click', () => closeModal('contactsModal'));
+  async function loadContacts(){
+    try {
+      const r = await api('/api/contacts');
+      $('contactsList').innerHTML = r.contacts.length ? r.contacts.map(c =>
+        '<div class="conv-row" style="cursor:default;"><div class="info"><div class="name">' + c.name + '</div>' +
+        '<div class="last">' + (c.linkedUsername ? '✅ حساب داره (' + c.linkedUsername + ')' : (c.phone || 'بدون حساب')) + '</div></div>' +
+        '<button class="rm-line" data-id="' + c.id + '" style="font-size:18px;">✕</button></div>'
+      ).join('') : '<div class="empty-note">هنوز مشتری‌ای اضافه نکردی.</div>';
+      document.querySelectorAll('#contactsList .rm-line').forEach(b => b.addEventListener('click', async () => {
+        if (!confirm('این مشتری حذف بشه؟')) return;
+        try { await api('/api/contacts/' + b.dataset.id, { method:'DELETE' }); loadContacts(); } catch(err){ showToast('⚠️ ' + err.message); }
+      }));
+    } catch(err){ $('contactsList').innerHTML = '<div class="empty-note">خطا در دریافت.</div>'; }
+  }
+  $('addContactBtn').addEventListener('click', async () => {
+    const name = $('ctName').value.trim();
+    if (!name){ showToast('⚠️ اسم مشتری رو بنویس'); return; }
+    try {
+      await api('/api/contacts', { method:'POST', body: JSON.stringify({
+        name, phone: $('ctPhone').value.trim(), linkedUsername: $('ctUsername').value.trim() || null
+      })});
+      $('ctName').value = ''; $('ctPhone').value = ''; $('ctUsername').value = '';
+      showToast('✅ مشتری اضافه شد');
+      loadContacts();
+    } catch(err){ showToast('⚠️ ' + err.message); }
+  });
+
+  /* ---------- my store (channel-like, max 10 photos) ---------- */
+  const MAX_STORE_PHOTOS = 10;
+  let storePhotos = [];
+  let replaceSlotIndex = null;
+  async function loadStore(){
+    try {
+      const s = await api('/api/store');
+      $('stName').value = s.name || '';
+      $('stCategory').value = s.category || 'پوشاک';
+      $('stDescription').value = s.description || '';
+      storePhotos = s.photos || [];
+      renderStoreGrid();
+    } catch(err){ showToast('⚠️ ' + err.message); }
+  }
+  function renderStoreGrid(){
+    const grid = $('storeGrid');
+    let html = '';
+    for (let i = 0; i < MAX_STORE_PHOTOS; i++){
+      if (storePhotos[i]){
+        html += '<div class="store-slot" data-index="' + i + '"><img src="' + storePhotos[i] + '"><button class="slot-del" data-index="' + i + '">✕</button></div>';
+      } else {
+        html += '<div class="store-slot store-empty" data-index="' + i + '">+</div>';
+      }
+    }
+    grid.innerHTML = html;
+    grid.querySelectorAll('.store-slot').forEach(el => {
+      el.addEventListener('click', (e) => {
+        if (e.target.classList.contains('slot-del')) return;
+        const idx = parseInt(el.dataset.index, 10);
+        replaceSlotIndex = storePhotos[idx] ? idx : null;
+        $('storePhotoInput').click();
+      });
+    });
+    grid.querySelectorAll('.slot-del').forEach(b => {
+      b.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (!confirm('این عکس پاک بشه؟')) return;
+        try {
+          const r = await api('/api/store/photos/' + b.dataset.index, { method:'DELETE' });
+          storePhotos = r.photos;
+          renderStoreGrid();
+        } catch(err){ showToast('⚠️ ' + err.message); }
+      });
+    });
+  }
+  $('storePhotoInput').addEventListener('change', async () => {
+    const file = $('storePhotoInput').files[0];
+    if (!file) return;
+    if (storePhotos.length >= MAX_STORE_PHOTOS && replaceSlotIndex === null){
+      showToast('⚠️ حداکثر ۱۰ عکس — اول یکی رو پاک کن یا روش بزن تا جاش عوض بشه');
+      $('storePhotoInput').value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const payload = { photo: reader.result };
+        if (replaceSlotIndex !== null) payload.replaceIndex = replaceSlotIndex;
+        const r = await api('/api/store/photos', { method:'POST', body: JSON.stringify(payload) });
+        storePhotos = r.photos;
+        renderStoreGrid();
+        showToast('✅ ذخیره شد');
+      } catch(err){ showToast('⚠️ ' + err.message); }
+      $('storePhotoInput').value = '';
+      replaceSlotIndex = null;
+    };
+    reader.readAsDataURL(file);
+  });
+  $('saveStoreInfoBtn').addEventListener('click', async () => {
+    try {
+      await api('/api/store', { method:'PUT', body: JSON.stringify({
+        name: $('stName').value.trim(), category: $('stCategory').value, description: $('stDescription').value.trim()
+      })});
+      showToast('✅ اطلاعات فروشگاه ذخیره شد');
+    } catch(err){ showToast('⚠️ ' + err.message); }
+  });
+
+  /* ---------- notifications ---------- */
+  $('notifBtn').addEventListener('click', () => { openModal('notifModal'); loadNotifications(); });
+  $('closeNotifModal').addEventListener('click', () => closeModal('notifModal'));
+  async function pollNotifBadge(){
+    try {
+      const r = await api('/api/notifications');
+      $('notifDot').style.display = r.unreadCount > 0 ? '' : 'none';
+    } catch(err){}
+  }
+  async function loadNotifications(){
+    try {
+      const r = await api('/api/notifications');
+      $('notifList').innerHTML = r.notifications.length ? r.notifications.map(n =>
+        '<div class="conv-row" data-id="' + n.id + '" style="' + (n.read ? 'opacity:.6;' : '') + '"><div class="info"><div class="name">' + n.text + '</div>' +
+        '<div class="last">' + new Date(n.createdAt).toLocaleString('fa-IR') + '</div></div></div>'
+      ).join('') : '<div class="empty-note">اعلانی نداری.</div>';
+      document.querySelectorAll('#notifList .conv-row').forEach(el => el.addEventListener('click', async () => {
+        try { await api('/api/notifications/' + el.dataset.id + '/read', { method:'POST' }); } catch(err){}
+        closeModal('notifModal');
+        loadInvoices();
+      }));
+      await api('/api/notifications/read-all', { method:'POST' });
+      pollNotifBadge();
+    } catch(err){ $('notifList').innerHTML = '<div class="empty-note">خطا در دریافت.</div>'; }
+  }
+
+  /* ---------- invoice detail + signing ---------- */
+  const detailSigState = { pad: null };
+  async function openInvoiceDetail(id){
+    openModal('invoiceDetailModal');
+    $('invoiceDetailBody').innerHTML = '<div class="empty-note"><span class="spinner"></span> در حال بارگذاری...</div>';
+    try {
+      const inv = await api('/api/invoices/' + id);
+      const linesHtml = inv.lines.map(l => '<div class="detail-line"><span>' + l.name + ' × ' + faDigits(l.qty) + '</span><span>' + money(l.net) + '</span></div>').join('');
+      let html = '<div class="modal-title">' + inv.label + ' #' + faDigits(inv.number) + '</div>' +
+        '<div class="note">' + (inv.role === 'seller' ? 'خریدار: ' : 'فروشنده: ') + (inv.counterpartName || inv.counterpartUsername) + '</div>' +
+        '<div style="margin:14px 0;">' + linesHtml + '</div>' +
+        '<div class="total-box"><div class="label">جمع کل</div><div class="value">' + money(inv.total) + '</div></div>';
+      if (inv.terms) html += '<div class="note">شرایط: ' + inv.terms + '</div>';
+      if (inv.paymentMethod) html += '<div class="note">پرداخت: ' + inv.paymentMethod + '</div>';
+      html += '<div style="display:flex; gap:20px; margin-top:16px;">';
+      if (inv.sellerSignature) html += '<div><div class="note" style="margin:0 0 4px;">امضای فروشنده</div><img class="sig-preview" src="' + inv.sellerSignature + '"></div>';
+      if (inv.buyerSignature) html += '<div><div class="note" style="margin:0 0 4px;">امضای خریدار</div><img class="sig-preview" src="' + inv.buyerSignature + '"></div>';
+      html += '</div>';
+
+      if (inv.role === 'buyer' && inv.status !== 'complete'){
+        html += '<div id="signAreaWrap"></div>';
+      }
+      html += '<div class="emp-actions" style="display:flex; gap:8px; margin-top:16px;">' +
+        '<button class="btn btn-outline" id="viewInvImgBtn" style="flex:1;">🖼️ نمایش تمام‌صفحه</button>' +
+        '<button class="btn btn-outline" id="downloadInvImgBtn" style="flex:1;">⬇️ دانلود عکس</button></div>';
+      $('invoiceDetailBody').innerHTML = html;
+      $('viewInvImgBtn').addEventListener('click', () => viewInvoiceImageFullscreen(inv));
+      $('downloadInvImgBtn').addEventListener('click', () => downloadInvoiceImage(inv));
+
+      if (inv.role === 'buyer' && inv.status !== 'complete'){
+        const me = await api('/api/me');
+        const wrap = $('signAreaWrap');
+        if (me.hasSignature){
+          wrap.innerHTML = '<button class="btn btn-primary" id="oneClickSignBtn" style="margin-top:14px;">✅ امضا با امضای ذخیره‌شده‌ی من</button>';
+          $('oneClickSignBtn').addEventListener('click', async () => {
+            try { await api('/api/invoices/' + id + '/sign', { method:'POST', body: JSON.stringify({}) }); showToast('✅ امضا شد'); closeModal('invoiceDetailModal'); loadInvoices(); }
+            catch(err){ showToast('⚠️ ' + err.message); }
+          });
+        } else {
+          wrap.innerHTML = '<h4 style="font-size:12px; color:var(--pistachio-dk); margin:16px 0 8px;">امضای تو</h4>' +
+            '<div class="sig-pad-wrap"><canvas id="detailSigPad" width="400" height="130"></canvas>' +
+            '<button class="btn btn-sm btn-outline" id="clearDetailSigBtn" style="position:absolute; top:8px; left:8px; width:auto; padding:6px 12px; font-size:11px;">پاک کردن</button></div>' +
+            '<button class="btn btn-primary" id="submitDetailSigBtn">✅ امضا و تایید فاکتور</button>';
+          const canvas = $('detailSigPad');
+          detailSigState.pad = attachSigPad(canvas);
+          $('clearDetailSigBtn').addEventListener('click', () => detailSigState.pad.clear());
+          $('submitDetailSigBtn').addEventListener('click', async () => {
+            if (!detailSigState.pad.hasDrawing){ showToast('⚠️ اول امضا کن'); return; }
+            try {
+              await api('/api/invoices/' + id + '/sign', { method:'POST', body: JSON.stringify({ signature: canvas.toDataURL('image/png'), saveAsDefault: true }) });
+              showToast('✅ امضا شد و برای دفعات بعد هم ذخیره شد');
+              closeModal('invoiceDetailModal'); loadInvoices();
+            } catch(err){ showToast('⚠️ ' + err.message); }
+          });
+        }
+      }
+    } catch(err){
+      $('invoiceDetailBody').innerHTML = '<div class="empty-note">خطا در دریافت فاکتور.</div>';
+    }
+  }
+  $('closeInvoiceDetailModal').addEventListener('click', () => closeModal('invoiceDetailModal'));
+
+  /* ---------- chats ---------- */
+  let chatPollTimer = null, currentChatUsername = null;
+  async function loadConversations(){
+    try {
+      const r = await api('/api/conversations');
+      $('tabChats').innerHTML = r.conversations.length ? r.conversations.map(c =>
+        '<div class="conv-row" data-username="' + c.username + '" data-name="' + c.businessName + '">' +
+        '<div><div class="name">' + c.businessName + '</div><div class="last">' + (c.lastMessage || 'شروع گفتگو') + '</div></div>' +
+        '<span style="color:var(--text-dim); font-size:11px;">›</span></div>'
+      ).join('') : '<div class="empty-note">هنوز گفتگویی نداری — از داخل یه فاکتور یا با زدن نام کاربری شروع کن.</div>';
+      document.querySelectorAll('.conv-row').forEach(el => el.addEventListener('click', () => openChat(el.dataset.username, el.dataset.name)));
+    } catch(err){
+      $('tabChats').innerHTML = '<div class="empty-note">خطا در دریافت گفتگوها.</div>';
+    }
+  }
+  async function openChat(username, name){
+    currentChatUsername = username;
+    $('chatTitle').textContent = '💬 ' + (name || username);
+    openModal('chatModal');
+    await refreshChat();
+    clearInterval(chatPollTimer);
+    chatPollTimer = setInterval(refreshChat, 4000);
+  }
+  async function refreshChat(){
+    if (!currentChatUsername) return;
+    try {
+      const r = await api('/api/messages/' + encodeURIComponent(currentChatUsername));
+      const wrap = $('chatThread');
+      const wasAtBottom = wrap.scrollTop + wrap.clientHeight >= wrap.scrollHeight - 10;
+      wrap.innerHTML = r.messages.length ? r.messages.map(m => '<div class="msg ' + m.from + '">' + m.text + '</div>').join('') : '<div class="empty-note">هنوز پیامی نیست — اولین پیام رو بفرست.</div>';
+      if (wasAtBottom) wrap.scrollTop = wrap.scrollHeight;
+    } catch(err){}
+  }
+  $('closeChatModal').addEventListener('click', () => { closeModal('chatModal'); clearInterval(chatPollTimer); currentChatUsername = null; });
+  $('chatSendBtn').addEventListener('click', sendChatMessage);
+  $('chatInput').addEventListener('keydown', e => { if (e.key === 'Enter') sendChatMessage(); });
+  async function sendChatMessage(){
+    const text = $('chatInput').value.trim();
+    if (!text || !currentChatUsername) return;
+    $('chatInput').value = '';
+    try { await api('/api/messages/' + encodeURIComponent(currentChatUsername), { method:'POST', body: JSON.stringify({ text }) }); refreshChat(); }
+    catch(err){ showToast('⚠️ ' + err.message); }
+  }
+
+  /* ---------- public sign view (buyer with no account) ---------- */
+  async function initPublicSignView(id, t){
+    openModal('publicSignView');
+    const body = $('publicSignBody');
+    try {
+      const inv = await (async () => {
+        const res = await fetch('/api/public/invoices/' + encodeURIComponent(id) + '?t=' + encodeURIComponent(t));
+        const b = await res.json();
+        if (!res.ok) throw new Error(b.error || 'خطا');
+        return b;
+      })();
+      if (inv.status === 'complete'){
+        body.innerHTML = '<div style="text-align:center; padding:40px 0 20px;"><div style="font-size:44px;">✅</div><div style="font-weight:700; margin-top:12px;">این فاکتور قبلاً امضا شده</div></div>' +
+          '<div class="emp-actions" style="display:flex; gap:8px;">' +
+          '<button class="btn btn-outline" id="viewInvImgBtn" style="flex:1;">🖼️ نمایش تمام‌صفحه</button>' +
+          '<button class="btn btn-outline" id="downloadInvImgBtn" style="flex:1;">⬇️ دانلود عکس</button></div>';
+        inv.label = 'فاکتور خرید';
+        $('viewInvImgBtn').addEventListener('click', () => viewInvoiceImageFullscreen(inv));
+        $('downloadInvImgBtn').addEventListener('click', () => downloadInvoiceImage(inv));
+        return;
+      }
+      inv.label = 'فاکتور خرید';
+      const linesHtml = inv.lines.map(l => '<div class="detail-line"><span>' + l.name + ' × ' + faDigits(l.qty) + '</span><span>' + money(l.net) + '</span></div>').join('');
+      body.innerHTML = '<div class="modal-title">🧾 فاکتور از ' + inv.sellerName + '</div>' +
+        '<div class="note">برای: ' + (inv.buyerName || 'شما') + '</div>' +
+        '<div class="card" style="margin:14px 0;">' + linesHtml +
+        '<div class="total-box"><div class="label">جمع کل</div><div class="value">' + money(inv.total) + '</div></div></div>' +
+        (inv.sellerSignature ? '<div class="note" style="margin-bottom:4px;">امضای فروشنده:</div><img class="sig-preview" src="' + inv.sellerSignature + '">' : '') +
+        '<h4 style="font-size:12px; color:var(--pistachio-dk); margin:16px 0 8px;">امضای شما</h4>' +
+        '<div class="sig-pad-wrap"><canvas id="publicSigPad" width="400" height="130"></canvas>' +
+        '<button class="btn btn-sm btn-outline" id="clearPublicSigBtn" style="position:absolute; top:8px; left:8px; width:auto; padding:6px 12px; font-size:11px;">پاک کردن</button></div>' +
+        '<button class="btn btn-primary" id="submitPublicSigBtn">✅ امضا و تایید فاکتور</button>';
+      const canvas = $('publicSigPad');
+      const sigState = attachSigPad(canvas);
+      $('clearPublicSigBtn').addEventListener('click', () => sigState.clear());
+      $('submitPublicSigBtn').addEventListener('click', async () => {
+        if (!sigState.hasDrawing){ showToast('⚠️ اول امضا کن'); return; }
+        try {
+          const sigDataUrl = canvas.toDataURL('image/png');
+          const res = await fetch('/api/public/invoices/' + encodeURIComponent(id) + '/sign?t=' + encodeURIComponent(t), {
+            method: 'POST', headers: { 'Content-Type':'application/json' },
+            body: JSON.stringify({ signature: sigDataUrl })
+          });
+          const b = await res.json();
+          if (!res.ok) throw new Error(b.error);
+          inv.buyerSignature = sigDataUrl; inv.status = 'complete';
+          body.innerHTML = '<div style="text-align:center; padding:40px 0 20px;"><div style="font-size:44px;">✅</div><div style="font-weight:700; margin-top:12px;">فاکتور با موفقیت امضا شد</div><div class="note">می‌تونی این صفحه رو ببندی.</div></div>' +
+            '<div class="emp-actions" style="display:flex; gap:8px;">' +
+            '<button class="btn btn-outline" id="viewInvImgBtn" style="flex:1;">🖼️ نمایش تمام‌صفحه</button>' +
+            '<button class="btn btn-outline" id="downloadInvImgBtn" style="flex:1;">⬇️ دانلود عکس</button></div>';
+          $('viewInvImgBtn').addEventListener('click', () => viewInvoiceImageFullscreen(inv));
+          $('downloadInvImgBtn').addEventListener('click', () => downloadInvoiceImage(inv));
+        } catch(err){ showToast('⚠️ ' + err.message); }
+      });
+    } catch(err){
+      body.innerHTML = '<div class="empty-note" style="padding:40px 0; text-align:center;">' + (err.message || 'فاکتور پیدا نشد') + '</div>';
+    }
+  }
+
+  /* ---------- boot ---------- */
+  async function startApp(){
+    closeModal('loginOverlay');
+    $('appRoot').style.display = '';
+    await loadInvoices();
+    pollNotifBadge();
+    setInterval(pollNotifBadge, 15000);
+  }
+  const urlParams = new URLSearchParams(location.search);
+  const signId = urlParams.get('sign'), signToken = urlParams.get('t');
+  if (signId && signToken){
+    closeModal('loginOverlay');
+    initPublicSignView(signId, signToken);
+  } else if (token){
+    startApp();
+  }
+})();
+</script>
+</body>
+</html>
