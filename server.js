@@ -114,7 +114,27 @@ db.exec(`
     name TEXT,
     category TEXT,
     description TEXT,
-    photos TEXT NOT NULL DEFAULT '[]'
+    photos TEXT NOT NULL DEFAULT '[]',
+    views INTEGER NOT NULL DEFAULT 0
+  );
+
+  CREATE TABLE IF NOT EXISTS reviews (
+    id TEXT PRIMARY KEY,
+    store_user_id TEXT NOT NULL,
+    reviewer_id TEXT NOT NULL,
+    positive INTEGER NOT NULL,
+    stars INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    UNIQUE(store_user_id, reviewer_id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_reviews_store ON reviews(store_user_id);
+
+  CREATE TABLE IF NOT EXISTS invites (
+    token TEXT PRIMARY KEY,
+    contact_id TEXT NOT NULL,
+    inviter_id TEXT NOT NULL,
+    used INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL
   );
 `);
 
@@ -160,9 +180,22 @@ const stmt = {
   markAllNotifRead: db.prepare('UPDATE notifications SET read = 1 WHERE to_user_id = ?'),
 
   getStore: db.prepare('SELECT * FROM stores WHERE user_id = ?'),
-  insertEmptyStore: db.prepare("INSERT OR IGNORE INTO stores (user_id, name, category, description, photos) VALUES (?, '', '', '', '[]')"),
+  insertEmptyStore: db.prepare("INSERT OR IGNORE INTO stores (user_id, name, category, description, photos, views) VALUES (?, '', '', '', '[]', 0)"),
   updateStoreInfo: db.prepare('UPDATE stores SET name = ?, category = ?, description = ? WHERE user_id = ?'),
   updateStorePhotos: db.prepare('UPDATE stores SET photos = ? WHERE user_id = ?'),
+  bumpStoreViews: db.prepare('UPDATE stores SET views = views + 1 WHERE user_id = ?'),
+  listStoresByCategory: db.prepare("SELECT s.*, u.username, u.business_name FROM stores s JOIN users u ON u.id = s.user_id WHERE s.category = ? AND s.name != ''"),
+  listAllStores: db.prepare("SELECT s.*, u.username, u.business_name FROM stores s JOIN users u ON u.id = s.user_id WHERE s.name != ''"),
+
+  upsertReview: db.prepare(`INSERT INTO reviews (id, store_user_id, reviewer_id, positive, stars, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(store_user_id, reviewer_id) DO UPDATE SET positive = excluded.positive, stars = excluded.stars, created_at = excluded.created_at`),
+  getMyReview: db.prepare('SELECT * FROM reviews WHERE store_user_id = ? AND reviewer_id = ?'),
+  reviewStats: db.prepare('SELECT COUNT(*) AS total, SUM(positive) AS pos, AVG(stars) AS avgStars FROM reviews WHERE store_user_id = ?'),
+
+  createInvite: db.prepare('INSERT INTO invites (token, contact_id, inviter_id, used, created_at) VALUES (?, ?, ?, 0, ?)'),
+  getInvite: db.prepare('SELECT * FROM invites WHERE token = ?'),
+  useInvite: db.prepare('UPDATE invites SET used = 1 WHERE token = ?'),
 };
 
 /* ============================================================
@@ -539,6 +572,124 @@ route('DELETE', '/api/store/photos/:index', {}, (req, res, params, ip, user) => 
   photos.splice(idx, 1);
   stmt.updateStorePhotos.run(JSON.stringify(photos), user.id);
   send(res, 200, { photos });
+});
+
+/* ============================================================
+   الگوریتم رتبه‌بندی منصفانه — Wilson score lower bound
+   ------------------------------------------------------------
+   چرا این الگوریتم؟ صرفاً درصد نظر مثبت رو مرتب کردن منصفانه نیست:
+   یه فروشگاه با ۲ نظر مثبت از ۲ (۱۰۰٪) نباید بالاتر از فروشگاهی با
+   ۸۰ نظر مثبت از ۱۰۰ (۸۰٪) بشینه — چون نمونه‌ش خیلی کوچیکه و
+   اطمینانی بهش نیست. Wilson score این عدم‌قطعیت رو با تعداد نظرات
+   می‌سنجه و یه عدد «حد پایین با ۹۵٪ اطمینان» می‌ده — همون روشی که
+   ردیت برای مرتب کردن کامنت‌ها استفاده می‌کنه.
+   ============================================================ */
+function wilsonScore(positive, total){
+  if (!total) return 0;
+  const z = 1.96;
+  const phat = positive / total;
+  const denom = 1 + (z * z) / total;
+  const centre = phat + (z * z) / (2 * total);
+  const margin = z * Math.sqrt((phat * (1 - phat) + (z * z) / (4 * total)) / total);
+  return (centre - margin) / denom;
+}
+function ownerFeedbackMessage(positive, negative){
+  const total = positive + negative;
+  if (!total) return 'هنوز نظری برای فروشگاهت ثبت نشده.';
+  const badRatio = negative / total;
+  if (badRatio <= 0.20) return 'شما ' + faDigitsSrv(negative) + ' نظر بد از ' + faDigitsSrv(total) + ' نظر دریافت کردی — همه‌چیز عالیه، همینطور ادامه بده.';
+  if (badRatio <= 0.40) return 'شما ' + faDigitsSrv(negative) + ' نظر بد از ' + faDigitsSrv(total) + ' نظر دریافت کردی — وضعیت هنوز قابل قبوله، ولی رو کیفیت و اعتبار جنس‌هات بیشتر تمرکز کن.';
+  return 'نظرات منفی شما نسبتاً زیاده (' + faDigitsSrv(negative) + ' از ' + faDigitsSrv(total) + ') — ممکنه فروشگاهت تو نتایج کم‌تر بالا بیاد. برای دیده‌شدن بهتر، رو کیفیت و صداقت در معرفی جنس‌هات کار کن.';
+}
+function faDigitsSrv(n){
+  const map = {'0':'۰','1':'۱','2':'۲','3':'۳','4':'۴','5':'۵','6':'۶','7':'۷','8':'۸','9':'۹'};
+  return String(n).replace(/[0-9]/g, d => map[d]);
+}
+
+route('POST', '/api/stores/:username/review', {}, async (req, res, params, ip, user) => {
+  const target = stmt.getUserByUsername.get(params.username);
+  if (!target) return send(res, 404, { error: 'فروشگاه پیدا نشد' });
+  if (target.id === user.id) return send(res, 400, { error: 'نمی‌تونی به فروشگاه خودت نظر بدی' });
+  const { positive, stars } = await readBody(req);
+  const starsNum = Math.min(5, Math.max(1, parseInt(stars, 10) || 3));
+  stmt.upsertReview.run(newId(8), target.id, user.id, positive ? 1 : 0, starsNum, Date.now());
+  send(res, 200, { ok: true });
+});
+
+route('GET', '/api/stores/:username', {}, (req, res, params, ip, user) => {
+  const target = stmt.getUserByUsername.get(params.username);
+  if (!target) return send(res, 404, { error: 'فروشگاه پیدا نشد' });
+  const s = ensureStore(target.id);
+  if (target.id !== user.id) stmt.bumpStoreViews.run(target.id);
+  const stats = stmt.reviewStats.get(target.id);
+  const positive = stats.pos || 0, total = stats.total || 0, negative = total - positive;
+  const myReview = stmt.getMyReview.get(target.id, user.id);
+  send(res, 200, {
+    username: target.username, businessName: target.business_name,
+    name: s.name, category: s.category, description: s.description, photos: JSON.parse(s.photos),
+    positive, negative, total, avgStars: stats.avgStars ? Math.round(stats.avgStars * 10) / 10 : 0,
+    myReview: myReview ? { positive: !!myReview.positive, stars: myReview.stars } : null,
+  });
+});
+
+route('GET', '/api/store/stats', {}, (req, res, params, ip, user) => {
+  const stats = stmt.reviewStats.get(user.id);
+  const s = stmt.getStore.get(user.id);
+  const positive = stats.pos || 0, total = stats.total || 0, negative = total - positive;
+  send(res, 200, {
+    views: s ? s.views : 0, positive, negative, total,
+    avgStars: stats.avgStars ? Math.round(stats.avgStars * 10) / 10 : 0,
+    message: ownerFeedbackMessage(positive, negative),
+  });
+});
+
+route('GET', '/api/discover', {}, (req, res, params, ip, user) => {
+  const category = req.query.get('category');
+  const rows = category ? stmt.listStoresByCategory.all(category) : stmt.listAllStores.all();
+  const list = rows.map(s => {
+    const stats = stmt.reviewStats.get(s.user_id);
+    const positive = stats.pos || 0, total = stats.total || 0;
+    const photos = JSON.parse(s.photos);
+    return {
+      username: s.username, businessName: s.business_name, name: s.name, category: s.category,
+      coverPhoto: photos[0] || null, positive, negative: total - positive, total,
+      avgStars: stats.avgStars ? Math.round(stats.avgStars * 10) / 10 : 0,
+      score: wilsonScore(positive, total),
+    };
+  }).sort((a, b) => b.score - a.score);
+  send(res, 200, { stores: list });
+});
+
+/* ============================================================
+   دعوت مخاطب بدون حساب — یه لینک با توضیح آماده، قابل ارسال هر جا
+   ============================================================ */
+route('POST', '/api/contacts/:id/invite', {}, (req, res, params, ip, user) => {
+  const c = stmt.getContact.get(params.id, user.id);
+  if (!c) return send(res, 404, { error: 'پیدا نشد' });
+  const token = newId(16);
+  stmt.createInvite.run(token, c.id, user.id, Date.now());
+  const message = 'سلام ' + c.name + '! ' + (user.business_name || user.username) + ' از طریق «فاکتور آنلاین» برات دعوت‌نامه فرستاده تا فاکتورها و پیام‌هامون رو یه‌جا و منظم مدیریت کنیم. با این لینک عضو شو: ';
+  send(res, 200, { token, link: '/?invite=' + token, message });
+});
+route('GET', '/api/invites/:token', { auth: false }, (req, res, params) => {
+  const inv = stmt.getInvite.get(params.token);
+  if (!inv || inv.used) return send(res, 404, { error: 'این دعوت‌نامه پیدا نشد یا قبلاً استفاده شده' });
+  const inviter = stmt.getUserById.get(inv.inviter_id);
+  send(res, 200, { inviterName: inviter ? inviter.business_name : 'یک کسب‌وکار' });
+});
+route('POST', '/api/invites/:token/consume', {}, (req, res, params, ip, user) => {
+  const inv = stmt.getInvite.get(params.token);
+  if (!inv || inv.used) return send(res, 404, { error: 'این دعوت‌نامه پیدا نشد یا قبلاً استفاده شده' });
+  const contact = stmt.getContactById.get(inv.contact_id);
+  if (contact) stmt.linkContact.run(user.username, contact.id);
+  // یه مخاطب متقابل هم برای کاربر تازه‌واردشده بساز، تا خودش هم بتونه به فرستنده فاکتور/پیام بده
+  const inviter = stmt.getUserById.get(inv.inviter_id);
+  if (inviter){
+    const already = db.prepare('SELECT id FROM contacts WHERE owner_id = ? AND linked_username = ?').get(user.id, inviter.username);
+    if (!already) stmt.insertContact.run(newId(8), user.id, inviter.business_name || inviter.username, '', inviter.username, Date.now());
+  }
+  stmt.useInvite.run(inv.token);
+  send(res, 200, { ok: true, inviterName: inviter ? inviter.business_name : null, inviterUsername: inviter ? inviter.username : null });
 });
 
 route('GET', '/api/health', { auth: false }, (req, res) => send(res, 200, { ok: true, time: Date.now() }));
