@@ -138,6 +138,18 @@ db.exec(`
   );
 `);
 
+function addCol(t, c, d){ try { db.exec('ALTER TABLE ' + t + ' ADD COLUMN ' + c + ' ' + d); } catch(e){} }
+addCol('users', 'phone', 'TEXT'); addCol('contacts', 'phone_norm', 'TEXT');
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
+  CREATE INDEX IF NOT EXISTS idx_contacts_phone ON contacts(phone_norm);
+  CREATE TABLE IF NOT EXISTS store_posts (
+    id TEXT PRIMARY KEY, user_id TEXT NOT NULL, text TEXT, image TEXT,
+    created_at INTEGER NOT NULL, edited_at INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_posts_user ON store_posts(user_id, created_at);
+`);
+
 const stmt = {
   insertUser: db.prepare('INSERT INTO users (id, username, business_name, salt, password_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)'),
   getUserByUsername: db.prepare('SELECT * FROM users WHERE username = ?'),
@@ -165,8 +177,8 @@ const stmt = {
      terms, payment_method, note, seller_signature, seller_stamp, buyer_signature, status, created_at, seller_signed_at, buyer_signed_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'pending_buyer', ?, ?, NULL)`),
   getInvoice: db.prepare('SELECT * FROM invoices WHERE id = ?'),
-  listSales: db.prepare('SELECT * FROM invoices WHERE seller_id = ? ORDER BY created_at DESC'),
-  listPurchases: db.prepare('SELECT * FROM invoices WHERE buyer_id = ? ORDER BY created_at DESC'),
+  listSales: db.prepare('SELECT * FROM invoices WHERE seller_id = ? ORDER BY created_at DESC LIMIT 300'),
+  listPurchases: db.prepare('SELECT * FROM invoices WHERE buyer_id = ? ORDER BY created_at DESC LIMIT 300'),
   signInvoice: db.prepare("UPDATE invoices SET buyer_signature = ?, status = 'complete', buyer_signed_at = ? WHERE id = ?"),
 
   insertMessage: db.prepare('INSERT INTO messages (id, from_id, to_id, text, created_at) VALUES (?, ?, ?, ?, ?)'),
@@ -203,6 +215,36 @@ const stmt = {
    دیگه همه رو از حساب بیرون نمی‌ندازه)
    ============================================================ */
 function hashPassword(password, salt){ return crypto.scryptSync(password, salt, 64).toString('hex'); }
+// نسخه‌ی غیرمسدودکننده — ورود هم‌زمان چندصد نفر دیگه سرور رو قفل نمی‌کنه
+const scryptAsync = (p, s) => new Promise((ok, no) => crypto.scrypt(p, s, 64, (e, k) => e ? no(e) : ok(k.toString('hex'))));
+Object.assign(stmt, {
+  setUserPhone: db.prepare('UPDATE users SET phone = ? WHERE id = ?'),
+  getUserByPhone: db.prepare('SELECT * FROM users WHERE phone = ?'),
+  contactsByPhone: db.prepare('SELECT * FROM contacts WHERE phone_norm = ? AND linked_username IS NULL'),
+  insertContactP: db.prepare('INSERT INTO contacts (id, owner_id, name, phone, phone_norm, linked_username, created_at) VALUES (?,?,?,?,?,?,?)'),
+  updateInvoice: db.prepare("UPDATE invoices SET lines=?, subtotal=?, discount=0, tax_rate=?, tax=?, total=?, terms=?, payment_method=?, note=?, buyer_signature=NULL, buyer_signed_at=NULL, status='pending_buyer' WHERE id=?"),
+  deleteInvoice: db.prepare('DELETE FROM invoices WHERE id = ?'),
+  insertPost: db.prepare('INSERT INTO store_posts (id, user_id, text, image, created_at) VALUES (?,?,?,?,?)'),
+  listPosts: db.prepare('SELECT * FROM store_posts WHERE user_id = ? ORDER BY created_at DESC LIMIT 60'),
+  getPost: db.prepare('SELECT * FROM store_posts WHERE id = ? AND user_id = ?'),
+  updatePost: db.prepare('UPDATE store_posts SET text = ?, edited_at = ? WHERE id = ? AND user_id = ?'),
+  deletePost: db.prepare('DELETE FROM store_posts WHERE id = ? AND user_id = ?'),
+  latestPostImage: db.prepare('SELECT image FROM store_posts WHERE user_id = ? AND image IS NOT NULL ORDER BY created_at DESC LIMIT 1'),
+});
+function normPhone(p){
+  let d = String(p || '').replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)).replace(/\D/g, '');
+  if (d.startsWith('0098')) d = d.slice(4); else if (d.startsWith('98') && d.length >= 12) d = d.slice(2);
+  if (d.length === 10 && d[0] === '9') d = '0' + d;
+  return d.length >= 10 && d.length <= 11 ? d : '';
+}
+function calcTotals(lines, taxRate){
+  const L = (Array.isArray(lines) ? lines : []).map(l => ({ name: String(l.name || '').slice(0, 120), qty: Math.max(0, +l.qty || 0), price: Math.max(0, +l.price || 0) }))
+    .filter(l => l.name && l.qty > 0 && l.price > 0).slice(0, 50).map(l => Object.assign(l, { net: l.qty * l.price }));
+  const subtotal = L.reduce((a, l) => a + l.net, 0);
+  const tr = Math.min(100, Math.max(0, +taxRate || 0));
+  const tax = subtotal * tr / 100;
+  return { lines: L, subtotal, taxRate: tr, tax, total: subtotal + tax };
+}
 function newId(bytes){ return crypto.randomBytes(bytes || 8).toString('hex'); }
 
 const SESSION_TTL = 30 * 24 * 60 * 60 * 1000; // ۳۰ روز
@@ -284,7 +326,7 @@ function matchRoute(method, pathname){
    ============================================================ */
 function userPublic(u){ return { username: u.username, businessName: u.business_name }; }
 
-function invoiceRowView(inv, forUserId){
+function invoiceRowView(inv, forUserId, light){
   const isSeller = inv.seller_id === forUserId;
   const seller = stmt.getUserById.get(inv.seller_id);
   const buyer = inv.buyer_id ? stmt.getUserById.get(inv.buyer_id) : null;
@@ -300,7 +342,7 @@ function invoiceRowView(inv, forUserId){
     lines: JSON.parse(inv.lines), subtotal: inv.subtotal, discount: inv.discount,
     taxRate: inv.tax_rate, tax: inv.tax, total: inv.total,
     terms: inv.terms, paymentMethod: inv.payment_method, note: inv.note,
-    sellerSignature: inv.seller_signature, sellerStamp: inv.seller_stamp, buyerSignature: inv.buyer_signature,
+    ...(light ? {} : { sellerSignature: inv.seller_signature, sellerStamp: inv.seller_stamp, buyerSignature: inv.buyer_signature }),
     status: inv.status, createdAt: inv.created_at,
   };
 }
@@ -308,15 +350,20 @@ function invoiceRowView(inv, forUserId){
 /* ============================================================
    احراز هویت
    ============================================================ */
-route('POST', '/api/auth/register', { auth: false }, async (req, res) => {
-  const { username, password, businessName } = await readBody(req);
-  if (!username || username.length < 3) return send(res, 400, { error: 'نام کاربری حداقل ۳ کاراکتر' });
+route('POST', '/api/auth/register', { auth: false }, async (req, res, params, ip) => {
+  if (rateLimited(ip)) return send(res, 429, { error: 'تلاش زیاد — یه دقیقه صبر کن' });
+  const { username, password, businessName, phone } = await readBody(req);
+  if (!username || !/^[\p{L}\p{N}_.]{3,24}$/u.test(username)) return send(res, 400, { error: 'نام کاربری ۳ تا ۲۴ حرف/عدد، بدون فاصله' });
   if (!password || password.length < 4) return send(res, 400, { error: 'رمز عبور حداقل ۴ کاراکتر' });
   if (stmt.getUserByUsername.get(username)) return send(res, 409, { error: 'این نام کاربری قبلاً گرفته شده' });
+  const pn = normPhone(phone);
+  if (phone && !pn) return send(res, 400, { error: 'شماره تلفن معتبر نیست' });
+  if (pn && stmt.getUserByPhone.get(pn)) return send(res, 409, { error: 'این شماره قبلاً ثبت شده' });
   const salt = newId(16);
   const id = newId(8);
   try {
-    stmt.insertUser.run(id, username, businessName || username, salt, hashPassword(password, salt), Date.now());
+    stmt.insertUser.run(id, username, String(businessName || username).slice(0, 80), salt, await scryptAsync(password, salt), Date.now());
+    if (pn){ stmt.setUserPhone.run(pn, id); stmt.contactsByPhone.all(pn).forEach(c => stmt.linkContact.run(username, c.id)); }
   } catch(err){
     return send(res, 409, { error: 'این نام کاربری قبلاً گرفته شده' });
   }
@@ -327,18 +374,26 @@ route('POST', '/api/auth/login', { auth: false }, async (req, res, params, ip) =
   if (rateLimited(ip)) return send(res, 429, { error: 'تلاش زیاد — یه دقیقه صبر کن' });
   const { username, password } = await readBody(req);
   const user = stmt.getUserByUsername.get(username);
-  if (!user || hashPassword(password, user.salt) !== user.password_hash){
+  if (!user || (await scryptAsync(String(password || ''), user.salt)) !== user.password_hash){
     return send(res, 401, { error: 'نام کاربری یا رمز اشتباهه' });
   }
   send(res, 200, { token: makeToken(user.id), username: user.username, businessName: user.business_name });
 });
 
 route('GET', '/api/me', {}, (req, res, params, ip, user) => {
-  send(res, 200, { username: user.username, businessName: user.business_name, hasSignature: !!user.signature, hasStamp: !!user.stamp });
+  send(res, 200, { username: user.username, businessName: user.business_name, hasSignature: !!user.signature, hasStamp: !!user.stamp, phone: user.phone || '' });
 });
 route('PUT', '/api/me', {}, async (req, res, params, ip, user) => {
-  const { businessName } = await readBody(req);
-  if (businessName) stmt.updateBusinessName.run(businessName, user.id);
+  const { businessName, phone } = await readBody(req);
+  if (businessName) stmt.updateBusinessName.run(String(businessName).slice(0, 80), user.id);
+  if (phone !== undefined){
+    const pn = normPhone(phone);
+    if (phone && !pn) return send(res, 400, { error: 'شماره تلفن معتبر نیست' });
+    const other = pn && stmt.getUserByPhone.get(pn);
+    if (other && other.id !== user.id) return send(res, 409, { error: 'این شماره قبلاً ثبت شده' });
+    stmt.setUserPhone.run(pn || null, user.id);
+    if (pn) stmt.contactsByPhone.all(pn).forEach(c => { if (c.owner_id !== user.id) stmt.linkContact.run(user.username, c.id); });
+  }
   send(res, 200, { ok: true });
 });
 route('POST', '/api/me/signature', {}, async (req, res, params, ip, user) => {
@@ -376,8 +431,10 @@ route('POST', '/api/contacts', {}, async (req, res, params, ip, user) => {
     if (target.id === user.id) return send(res, 400, { error: 'نمی‌تونی خودت رو اضافه کنی' });
     linked = target.username;
   }
+  const pn = normPhone(phone);
+  if (!linked && pn){ const pu = stmt.getUserByPhone.get(pn); if (pu && pu.id !== user.id) linked = pu.username; }
   const id = newId(8);
-  stmt.insertContact.run(id, user.id, name.trim(), (phone || '').trim(), linked, Date.now());
+  stmt.insertContactP.run(id, user.id, name.trim().slice(0, 80), (phone || '').trim(), pn || null, linked, Date.now());
   send(res, 200, { id, ownerId: user.id, name: name.trim(), phone: (phone || '').trim(), linkedUsername: linked, createdAt: Date.now() });
 });
 route('GET', '/api/contacts', {}, (req, res, params, ip, user) => {
@@ -407,7 +464,8 @@ route('POST', '/api/invoices', {}, async (req, res, params, ip, user) => {
   const body = await readBody(req);
   const contact = stmt.getContact.get(body.contactId, user.id);
   if (!contact) return send(res, 404, { error: 'اول این مشتری رو به لیست مشتری‌هات اضافه کن' });
-  if (!Array.isArray(body.lines) || !body.lines.length) return send(res, 400, { error: 'حداقل یک قلم لازمه' });
+  const T = calcTotals(body.lines, body.taxRate);
+  if (!T.lines.length) return send(res, 400, { error: 'حداقل یک قلم لازمه' });
 
   const buyerUser = contact.linked_username ? stmt.getUserByUsername.get(contact.linked_username) : null;
 
@@ -419,17 +477,22 @@ route('POST', '/api/invoices', {}, async (req, res, params, ip, user) => {
   const now = Date.now();
   stmt.insertInvoice.run(
     id, number, user.id, buyerUser ? buyerUser.id : null, contact.id, shareToken,
-    JSON.stringify(body.lines), body.subtotal || 0, body.discount || 0, body.taxRate || 0, body.tax || 0, body.total || 0,
+    JSON.stringify(T.lines), T.subtotal, 0, T.taxRate, T.tax, T.total,
     body.terms || '', body.paymentMethod || '', body.note || '', user.signature || null, user.stamp || null,
     now, now
   );
+  if (buyerUser){
+    // لینک امضا مستقیم داخل پیام‌های سایت برای خریدار می‌ره
+    stmt.insertMessage.run(newId(8), user.id, buyerUser.id, '🧾 فاکتور #' + number + ' برای امضا: /?open=' + id, now);
+    stmt.insertNotification.run(newId(8), buyerUser.id, 'invoice_new', (user.business_name || user.username) + ' یه فاکتور برات صادر کرد (#' + number + ')', id, now);
+  }
   const shareLink = buyerUser ? null : ('/?sign=' + id + '&t=' + shareToken);
   send(res, 200, { id, number, shareLink, registered: !!buyerUser });
 });
 
 route('GET', '/api/invoices', {}, (req, res, params, ip, user) => {
-  const sales = stmt.listSales.all(user.id).map(i => invoiceRowView(i, user.id));
-  const purchases = stmt.listPurchases.all(user.id).map(i => invoiceRowView(i, user.id));
+  const sales = stmt.listSales.all(user.id).map(i => invoiceRowView(i, user.id, true));
+  const purchases = stmt.listPurchases.all(user.id).map(i => invoiceRowView(i, user.id, true));
   send(res, 200, { sales, purchases });
 });
 route('GET', '/api/invoices/:id', {}, (req, res, params, ip, user) => {
@@ -437,6 +500,29 @@ route('GET', '/api/invoices/:id', {}, (req, res, params, ip, user) => {
   if (!inv) return send(res, 404, { error: 'فاکتور پیدا نشد' });
   if (inv.seller_id !== user.id && inv.buyer_id !== user.id) return send(res, 403, { error: 'اجازه‌ی دیدن این فاکتور رو نداری' });
   send(res, 200, invoiceRowView(inv, user.id));
+});
+
+route('DELETE', '/api/invoices/:id', {}, (req, res, params, ip, user) => {
+  const inv = stmt.getInvoice.get(params.id);
+  if (!inv || inv.seller_id !== user.id) return send(res, 404, { error: 'فاکتور پیدا نشد' });
+  stmt.deleteInvoice.run(inv.id);
+  if (inv.buyer_id) stmt.insertNotification.run(newId(8), inv.buyer_id, 'invoice_deleted', (user.business_name || user.username) + ' فاکتور #' + inv.number + ' رو حذف کرد', null, Date.now());
+  send(res, 200, { ok: true });
+});
+route('PUT', '/api/invoices/:id', {}, async (req, res, params, ip, user) => {
+  const inv = stmt.getInvoice.get(params.id);
+  if (!inv || inv.seller_id !== user.id) return send(res, 404, { error: 'فاکتور پیدا نشد' });
+  const body = await readBody(req);
+  const T = calcTotals(body.lines, body.taxRate);
+  if (!T.lines.length) return send(res, 400, { error: 'حداقل یک قلم لازمه' });
+  // با ویرایش، امضای خریدار باطل می‌شه و باید دوباره امضا کنه
+  stmt.updateInvoice.run(JSON.stringify(T.lines), T.subtotal, T.taxRate, T.tax, T.total,
+    String(body.terms || '').slice(0, 300), String(body.paymentMethod || ''), String(body.note || '').slice(0, 500), inv.id);
+  if (inv.buyer_id){
+    stmt.insertNotification.run(newId(8), inv.buyer_id, 'invoice_edited', (user.business_name || user.username) + ' فاکتور #' + inv.number + ' رو ویرایش کرد — دوباره امضا کن', inv.id, Date.now());
+    stmt.insertMessage.run(newId(8), user.id, inv.buyer_id, '✏️ فاکتور #' + inv.number + ' ویرایش شد، لطفاً دوباره امضا کن: /?open=' + inv.id, Date.now());
+  }
+  send(res, 200, { ok: true });
 });
 
 function notifySeller(inv, signerName){
@@ -627,6 +713,7 @@ route('GET', '/api/stores/:username', {}, (req, res, params, ip, user) => {
   send(res, 200, {
     username: target.username, businessName: target.business_name,
     name: s.name, category: s.category, description: s.description, photos: JSON.parse(s.photos),
+    posts: stmt.listPosts.all(target.id).map(postView),
     positive, negative, total, avgStars: stats.avgStars ? Math.round(stats.avgStars * 10) / 10 : 0,
     myReview: myReview ? { positive: !!myReview.positive, stars: myReview.stars } : null,
   });
@@ -652,7 +739,7 @@ route('GET', '/api/discover', {}, (req, res, params, ip, user) => {
     const photos = JSON.parse(s.photos);
     return {
       username: s.username, businessName: s.business_name, name: s.name, category: s.category,
-      coverPhoto: photos[0] || null, positive, negative: total - positive, total,
+      coverPhoto: photos[0] || (stmt.latestPostImage.get(s.user_id) || {}).image || null, positive, negative: total - positive, total,
       avgStars: stats.avgStars ? Math.round(stats.avgStars * 10) / 10 : 0,
       score: wilsonScore(positive, total),
     };
@@ -692,20 +779,57 @@ route('POST', '/api/invites/:token/consume', {}, (req, res, params, ip, user) =>
   send(res, 200, { ok: true, inviterName: inviter ? inviter.business_name : null, inviterUsername: inviter ? inviter.username : null });
 });
 
+const UPLOAD_DIR = path.join(__dirname, 'uploads');
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+route('POST', '/api/upload', {}, async (req, res, params, ip, user) => {
+  const { image } = await readBody(req);
+  const m = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$/.exec(image || '');
+  if (!m) return send(res, 400, { error: 'فرمت عکس معتبر نیست' });
+  const buf = Buffer.from(m[2], 'base64');
+  if (buf.length > 3 * 1024 * 1024) return send(res, 413, { error: 'عکس بیش از ۳ مگابایته' });
+  const name = newId(12) + '.' + (m[1] === 'jpeg' ? 'jpg' : m[1]);
+  await fs.promises.writeFile(path.join(UPLOAD_DIR, name), buf);
+  send(res, 200, { url: '/uploads/' + name });
+});
+const postView = p => ({ id: p.id, text: p.text, image: p.image, createdAt: p.created_at, editedAt: p.edited_at });
+route('GET', '/api/store/posts', {}, (req, res, params, ip, user) => send(res, 200, { posts: stmt.listPosts.all(user.id).map(postView) }));
+route('POST', '/api/store/posts', {}, async (req, res, params, ip, user) => {
+  ensureStore(user.id);
+  const { text, image } = await readBody(req);
+  const t = String(text || '').trim().slice(0, 3000);
+  const img = typeof image === 'string' && /^\/uploads\/[a-f0-9]+\.(jpg|png|webp)$/.test(image) ? image : null;
+  if (!t && !img) return send(res, 400, { error: 'متن یا عکس بفرست' });
+  const id = newId(8), now = Date.now();
+  stmt.insertPost.run(id, user.id, t, img, now);
+  send(res, 200, postView({ id, text: t, image: img, created_at: now, edited_at: null }));
+});
+route('PUT', '/api/store/posts/:id', {}, async (req, res, params, ip, user) => {
+  if (!stmt.getPost.get(params.id, user.id)) return send(res, 404, { error: 'پست پیدا نشد' });
+  const { text } = await readBody(req);
+  stmt.updatePost.run(String(text || '').trim().slice(0, 3000), Date.now(), params.id, user.id);
+  send(res, 200, { ok: true });
+});
+route('DELETE', '/api/store/posts/:id', {}, (req, res, params, ip, user) => {
+  if (!stmt.getPost.get(params.id, user.id)) return send(res, 404, { error: 'پست پیدا نشد' });
+  stmt.deletePost.run(params.id, user.id);
+  send(res, 200, { ok: true });
+});
+
 route('GET', '/api/health', { auth: false }, (req, res) => send(res, 200, { ok: true, time: Date.now() }));
 
 /* ============================================================
    فایل‌های استاتیک
    ============================================================ */
 const MIME = { '.html':'text/html; charset=utf-8', '.js':'text/javascript', '.css':'text/css', '.json':'application/json',
-  '.png':'image/png', '.jpg':'image/jpeg', '.svg':'image/svg+xml', '.webmanifest':'application/manifest+json' };
+  '.png':'image/png', '.jpg':'image/jpeg', '.svg':'image/svg+xml', '.webp':'image/webp', '.webmanifest':'application/manifest+json' };
 function serveStatic(req, res, pathname){
-  let filePath = pathname === '/' ? '/index.html' : pathname;
-  filePath = path.join(PUBLIC_DIR, filePath);
-  if (!filePath.startsWith(PUBLIC_DIR)) { res.writeHead(403); return res.end('Forbidden'); }
+  const isUp = pathname.startsWith('/uploads/');
+  const base = isUp ? UPLOAD_DIR : PUBLIC_DIR;
+  let filePath = path.join(base, isUp ? pathname.slice(8) : (pathname === '/' ? '/index.html' : pathname));
+  if (!filePath.startsWith(base)) { res.writeHead(403); return res.end('Forbidden'); }
   fs.readFile(filePath, (err, content) => {
     if (err){ res.writeHead(404); return res.end('Not found'); }
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(filePath)] || 'application/octet-stream' });
+    res.writeHead(200, { 'Content-Type': MIME[path.extname(filePath)] || 'application/octet-stream', 'Cache-Control': isUp ? 'public, max-age=31536000, immutable' : 'no-cache' });
     res.end(content);
   });
 }
