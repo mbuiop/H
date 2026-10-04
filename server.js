@@ -62,7 +62,7 @@ async function initDb(){
   }
   if (N === 1){ // دیتابیس نسخه‌ی قبلی: جدول‌های جدید رو یک‌بار از داده‌ی موجود پر کن
     const sh = shards[0], empty = async t => !(await sh.prepare('SELECT 1 AS x FROM ' + t + ' LIMIT 1').get());
-    if (await empty('usernames')) await sh.exec('INSERT INTO usernames (username, user_id) SELECT username, id FROM users ON CONFLICT DO NOTHING');
+    if (await empty('usernames')) await sh.exec('INSERT INTO usernames (username, user_id) SELECT username, id FROM users WHERE true ON CONFLICT DO NOTHING');
     if (await empty('phones')) await sh.exec("INSERT INTO phones (phone, user_id) SELECT phone, id FROM users WHERE phone IS NOT NULL AND phone != '' ON CONFLICT DO NOTHING");
     if (await empty('purchases')) await sh.exec('INSERT INTO purchases (buyer_id, invoice_id, created_at) SELECT buyer_id, id, COALESCE(created_at, 0) FROM invoices WHERE buyer_id IS NOT NULL ON CONFLICT DO NOTHING');
   }
