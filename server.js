@@ -184,6 +184,13 @@ async function getUserByUsername(username){
   return id ? getUserById(id) : null;
 }
 const dropUser = id => cache.del('u:' + id);
+const seenAt = new Map();
+function touchSeen(uid){
+  const n = Date.now(); if ((seenAt.get(uid) || 0) > n - 30000) return;
+  if (seenAt.size > 50000) seenAt.clear();
+  seenAt.set(uid, n); cache.set('seen:' + uid, 1, 120);
+}
+const isOnline = async uid => (await cache.get('seen:' + uid)) !== undefined;
 async function makeToken(userId){
   const token = newIdOn(shardOf(userId), 32);
   await at(userId).insertSession.run(token, userId, Date.now() + SESSION_TTL);
@@ -353,6 +360,7 @@ route('POST', '/api/me/stamp', {}, async (req, res, params, ip, user) => {
 });
 route('GET', '/api/me/signature', {}, async (req, res, params, ip, user) => send(res, 200, (await at(user.id).getUserImages.get(user.id)) || {}));
 route('GET', '/api/users/:username', {}, async (req, res, params, ip, user) => {
+  if (await rateLimited('lk:' + user.id, 40, 60)) return send(res, 429, { error: 'کمی صبر کن و دوباره امتحان کن' });
   const t = await getUserByUsername(params.username);
   if (!t) return send(res, 404, { error: 'همچین کاربری پیدا نشد' });
   if (t.id === user.id) return send(res, 400, { error: 'نمی‌تونی خودت رو انتخاب کنی' });
@@ -376,9 +384,31 @@ route('POST', '/api/contacts', {}, async (req, res, params, ip, user) => {
   await at(user.id).insertContact.run(id, user.id, nm, String(phone || '').trim().slice(0, 30), pn || null, linked, Date.now());
   send(res, 200, { id, ownerId: user.id, name: nm, phone: String(phone || '').trim(), linkedUsername: linked, createdAt: Date.now() });
 });
+route('POST', '/api/contacts/bulk', {}, async (req, res, params, ip, user) => {
+  if (await rateLimited('bulk:' + user.id, 6, 60)) return send(res, 429, { error: 'کمی صبر کن و دوباره امتحان کن' });
+  const list = (await readBody(req)).contacts;
+  if (!Array.isArray(list)) return send(res, 400, { error: 'داده‌ی نامعتبر' });
+  const st = at(user.id), have = new Set((await st.listContacts.all(user.id)).map(c => c.phone_norm).filter(Boolean));
+  let added = 0, skipped = 0;
+  for (const c of list.slice(0, 500)){
+    const pn = normPhone(c && c.phone), nm = String((c && c.name) || '').trim().slice(0, 80);
+    if (!pn || !nm || have.has(pn)){ skipped++; continue; }
+    have.add(pn);
+    let linked = null; const r = await dir(pn).getPhone.get(pn);
+    if (r){ if (r.user_id === user.id){ skipped++; continue; } const pu = await getUserById(r.user_id); if (pu) linked = pu.username; }
+    await st.insertContact.run(newId(8), user.id, nm, String(c.phone).trim().slice(0, 30), pn, linked, Date.now());
+    added++;
+  }
+  send(res, 200, { added, skipped });
+});
 route('GET', '/api/contacts', {}, async (req, res, params, ip, user) => {
   const rows = await at(user.id).listContacts.all(user.id);
-  send(res, 200, { contacts: rows.map(c => ({ id: c.id, name: c.name, phone: c.phone, linkedUsername: c.linked_username })) });
+  const out = await Promise.all(rows.map(async c => {
+    let online = false, memberName = null;
+    if (c.linked_username){ const u = await getUserByUsername(c.linked_username); if (u){ memberName = u.business_name; online = await isOnline(u.id); } }
+    return { id: c.id, name: c.name, phone: c.phone, linkedUsername: c.linked_username, memberName, online };
+  }));
+  send(res, 200, { contacts: out });
 });
 route('DELETE', '/api/contacts/:id', {}, async (req, res, params, ip, user) => {
   const st = at(user.id);
@@ -508,12 +538,13 @@ route('GET', '/api/messages/:username', {}, async (req, res, params, ip, user) =
   if (!other) return send(res, 404, { error: 'کاربر پیدا نشد' });
   const messages = await cache.wrap('t:' + user.id + ':' + other.id, 8, async () =>
     (await at(user.id).getThread.all(user.id, other.id, other.id, user.id)).map(m => ({ from: m.from_id === user.id ? 'me' : 'them', text: m.text, createdAt: m.created_at })));
-  send(res, 200, { messages, businessName: other.business_name });
+  send(res, 200, { messages, businessName: other.business_name, online: await isOnline(other.id) });
 });
 route('POST', '/api/messages/:username', {}, async (req, res, params, ip, user) => {
   if (await rateLimited('msg:' + user.id, 60, 60)) return send(res, 429, { error: 'خیلی سریع پیام می‌دی' });
   const other = await getUserByUsername(params.username);
   if (!other) return send(res, 404, { error: 'کاربر پیدا نشد' });
+  if (other.id === user.id) return send(res, 400, { error: 'نمی‌تونی به خودت پیام بدی' });
   const { text } = await readBody(req);
   if (!text || !String(text).trim()) return send(res, 400, { error: 'متن خالیه' });
   await postMessage(user.id, other.id, String(text).trim().slice(0, 2000));
@@ -525,7 +556,7 @@ route('GET', '/api/conversations', {}, async (req, res, params, ip, user) => {
   const list = (await Promise.all([...ids].map(async id => {
     const u = await getUserById(id); if (!u) return null;
     const last = await st.lastMessageBetween.get(id, user.id, user.id, id);
-    return { username: u.username, businessName: u.business_name, lastMessage: last ? last.text : null, lastAt: last ? last.created_at : 0 };
+    return { username: u.username, businessName: u.business_name, lastMessage: last ? last.text : null, lastAt: last ? last.created_at : 0, lastFromMe: last ? last.from_id === user.id : false, online: await isOnline(id) };
   }))).filter(Boolean).sort((a, b) => b.lastAt - a.lastAt);
   send(res, 200, { conversations: list });
 });
@@ -612,7 +643,7 @@ route('POST', '/api/contacts/:id/invite', {}, async (req, res, params, ip, user)
   if (!c) return send(res, 404, { error: 'پیدا نشد' });
   const token = idOn(user.id, 16);
   await st.createInvite.run(token, c.id, user.id, Date.now());
-  send(res, 200, { token, link: '/?invite=' + token, message: 'سلام ' + c.name + '! ' + (user.business_name || user.username) + ' از طریق «فاکتور آنلاین» برات دعوت‌نامه فرستاده تا فاکتورها و پیام‌هامون رو یه‌جا و منظم مدیریت کنیم. با این لینک عضو شو: ' });
+  send(res, 200, { token, link: '/?invite=' + token, message: 'سلام ' + c.name + ' جان 👋\n' + (user.business_name || user.username) + ' تو «فاکتور آنلاین» منتظرته ✨\nفاکتور شیک، امضای آنلاین و پیام‌ها همه یه‌جا 👇\n' });
 });
 route('GET', '/api/invites/:token', { auth: false }, async (req, res, params) => {
   const inv = await at(params.token).getInvite.get(params.token);
@@ -704,6 +735,7 @@ const server = http.createServer(async (req, res) => {
       const h = req.headers['authorization'] || '';
       user = await userFromToken(h.startsWith('Bearer ') ? h.slice(7) : null);
       if (!user) return send(res, 401, { error: 'وارد نشدی یا نشستت منقضی شده' });
+      touchSeen(user.id);
     }
     req.query = u.searchParams;
     await matched.route.handler(req, res, matched.params, ip, user);
