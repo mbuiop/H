@@ -26,6 +26,7 @@ db.execute("""CREATE TABLE IF NOT EXISTS orders(
 db.execute("""CREATE TABLE IF NOT EXISTS users(
     user_id INTEGER PRIMARY KEY, username TEXT, ref_by INTEGER,
     balance INTEGER DEFAULT 0, warnings INTEGER DEFAULT 0)""")
+db.execute("CREATE TABLE IF NOT EXISTS settings(k TEXT PRIMARY KEY, v TEXT)")
 db.execute("""CREATE TABLE IF NOT EXISTS withdraws(
     id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, amount INTEGER,
     card TEXT, status TEXT)""")
@@ -36,6 +37,15 @@ for _col in ("receipt_msg INTEGER", "apk_id TEXT", "aab_id TEXT"):  # اگر د�
         pass
 db.commit()
 # وضعیت سفارش: await_receipt, pending_pay, await_link, await_icon, await_name, building, done, rejected
+
+
+def get_setting(k):
+    r = db.execute("SELECT v FROM settings WHERE k=?", (k,)).fetchone()
+    return r[0] if r else None
+
+
+def set_setting(k, v):
+    db.execute("INSERT OR REPLACE INTO settings(k,v) VALUES(?,?)", (k, v)); db.commit()
 
 
 def fmt(n):
@@ -82,7 +92,8 @@ PANEL = M([[B("✅ تایید اشتراک", callback_data="ap:subs")],
            [B("📢 ارسال پیام همگانی", callback_data="ap:bc")],
            [B("⚠️ ارسال اخطار به کاربر", callback_data="ap:warn")],
            [B("💸 درخواست‌های برداشت", callback_data="ap:wd")],
-           [B("📦 آپلود قالب اپلیکیشن", callback_data="ap:tpl")]])
+           [B("📦 آپلود قالب اپلیکیشن", callback_data="ap:tpl")],
+           [B("🗂 تنظیم مخزن گیت‌هاب", callback_data="ap:repo")]])
 
 
 # ---------------- کاربر ----------------
@@ -194,6 +205,13 @@ async def admin_panel_action(c, q, arg):
         bd["astate"] = {"t": "tpl"}
         await q.message.reply_text("📦 فایل zip پروژه اندروید را بفرستید.\nاگر بیشتر از ۲۰ مگابایت است، دستی با نام template.zip کنار bot.py بگذارید.\nبرای لغو: /cancel")
 
+    elif arg == "repo":
+        cur = get_setting("repo") or "تنظیم نشده"
+        bd["astate"] = {"t": "repo"}
+        await q.message.reply_text(
+            f"🗂 مخزن فعلی: {cur}\n\nمخزن جدید را به شکل owner/repo بفرستید (مثلاً mbuiop/app-builds).\n"
+            "ربات قبل از ذخیره دسترسی توکن را تست می‌کند.\nبرای لغو: /cancel")
+
     elif arg == "wd":
         rows = db.execute("SELECT id,user_id,amount,card FROM withdraws WHERE status='pending'").fetchall()
         if not rows:
@@ -218,12 +236,15 @@ async def run_auto_build(c, oid):
     try:
         await c.bot.send_message(ADMIN_ID, f"🤖 ساخت خودکار سفارش #{oid} شروع شد...")
         link, icon_id, name = db.execute("SELECT link,icon_id,app_name FROM orders WHERE id=?", (oid,)).fetchone()
+        repo_full = get_setting("repo")
+        if not repo_full:
+            raise RuntimeError("مخزن گیت‌هاب تنظیم نشده. از پنل «تنظیم مخزن گیت‌هاب» اضافه کن.")
         os.makedirs("work", exist_ok=True)
         icon_path = f"work/icon_{oid}.img"
         f = await c.bot.get_file(icon_id)
         await f.download_to_drive(icon_path)
         apk_path, aab_path, repo_url = await asyncio.to_thread(
-            builder.build_app, oid, TEMPLATE_ZIP, link, name, icon_path, progress)
+            builder.build_app, oid, TEMPLATE_ZIP, link, name, icon_path, progress, repo_full)
         with open(apk_path, "rb") as fh:
             msg_ = await c.bot.send_document(
                 ADMIN_ID, fh, filename=f"app_{oid}.apk",
@@ -413,6 +434,20 @@ async def admin_message(u: Update, c: ContextTypes.DEFAULT_TYPE):
         await f.download_to_drive(TEMPLATE_ZIP)
         bd["astate"] = None
         await m.reply_text("✅ قالب ذخیره شد.", reply_markup=PANEL)
+
+    elif st["t"] == "repo":
+        t = (m.text or "").strip().replace("https://github.com/", "").strip("/")
+        if t.endswith(".git"):
+            t = t[:-4]
+        await m.reply_text("⏳ در حال تست دسترسی...")
+        try:
+            rep = await asyncio.to_thread(builder.check_repo, t)
+        except Exception as e:
+            await m.reply_text(f"❌ {str(e)[:900]}\n\nاصلاحش کن و دوباره نام مخزن را بفرست (یا /cancel).")
+            return
+        set_setting("repo", t)
+        bd["astate"] = None
+        await m.reply_text(f"{rep}\n🗂 مخزن ساخت: {t}", reply_markup=PANEL)
 
     elif st["t"] == "bc":
         bd["astate"] = None

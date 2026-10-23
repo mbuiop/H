@@ -11,13 +11,14 @@ import base64
 import secrets
 import zipfile
 import subprocess
+import threading
 from xml.sax.saxutils import escape
 
 import httpx
 from nacl import encoding, public
 from PIL import Image
 
-GITHUB_TOKEN = os.environ.get("APP_BUILDER_GITHUB_TOKEN", "")
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 API = "https://api.github.com"
 REPO_PRIVATE = True        # مخزن‌ها خصوصی ساخته شوند
 WORK = "work"
@@ -26,11 +27,12 @@ BUILD_TIMEOUT = 40 * 60    # ثانیه
 # قوانین حذف واترمارک/برندینگ داخل کد: لیستی از (regex، جایگزین). مثال:
 # BRANDING_RULES = [(r"Powered by\s+\w+", ""), (r"example\.com/logo", "")]
 BRANDING_RULES = []
+BUILD_LOCK = threading.Lock()   # secretهای مخزن مشترک‌اند؛ ساخت‌ها نوبتی انجام می‌شوند
 
 WORKFLOW = """name: Build APK
 on:
   push:
-    branches: [main]
+    branches: ['order-*']
   workflow_dispatch:
 jobs:
   build:
@@ -294,12 +296,13 @@ def patch_icons(root, icon_path):
 
 
 # ---------------- گیت‌هاب ----------------
-def git_push(root, owner, repo):
+def git_push(root, owner, repo, branch):
     env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
 
     def run(*a):
         try:
-            subprocess.run(a, cwd=root, check=True, capture_output=True, text=True, env=env)
+            r = subprocess.run(a, cwd=root, check=True, capture_output=True, text=True, env=env)
+            return r.stdout.strip()
         except subprocess.CalledProcessError as e:
             raise RuntimeError(_clean(e.stderr or e.stdout)[:400])
         except FileNotFoundError:
@@ -310,13 +313,41 @@ def git_push(root, owner, repo):
     run("git", "config", "user.name", "AppMaker")
     run("git", "add", "-A")
     run("git", "commit", "-m", "init")
-    run("git", "push", f"https://x-access-token:{GITHUB_TOKEN}@github.com/{owner}/{repo}.git", "main")
+    run("git", "push", "--force",
+        f"https://x-access-token:{GITHUB_TOKEN}@github.com/{owner}/{repo}.git",
+        f"HEAD:refs/heads/{branch}")
+    return run("git", "rev-parse", "HEAD")
 
 
-def wait_run(owner, repo):
+def check_repo(repo_full):
+    """بررسی توکن و دسترسی به مخزن؛ در صورت مشکل خطای فارسی می‌دهد."""
+    if not GITHUB_TOKEN:
+        raise RuntimeError("متغیر GITHUB_TOKEN روی سرور تنظیم نشده (یا ربات بعد از export ریستارت نشده)")
+    if repo_full.count("/") != 1:
+        raise RuntimeError("فرمت مخزن باید owner/repo باشد")
+    hd = {"Authorization": f"Bearer {GITHUB_TOKEN}", "Accept": "application/vnd.github+json"}
+    r = httpx.get(API + f"/repos/{repo_full}", timeout=60, headers=hd)
+    if r.status_code == 404:
+        raise RuntimeError("مخزن پیدا نشد یا توکن به آن دسترسی ندارد (نام را چک کن یا در توکن همین مخزن را انتخاب کن)")
+    if r.status_code in (401, 403):
+        raise RuntimeError(f"توکن نامعتبر یا منقضی است ({r.status_code})")
+    r.raise_for_status()
+    perms = r.json().get("permissions") or {}
+    if not perms.get("push"):
+        raise RuntimeError("توکن اجازه‌ی نوشتن (Contents: Read and write) روی این مخزن ندارد. "
+                           "اگر مخزن زیر Organization است، Resource owner توکن باید همان Organization باشد.")
+    pk = httpx.get(API + f"/repos/{repo_full}/actions/secrets/public-key", timeout=60, headers=hd)
+    if pk.status_code >= 400:
+        raise RuntimeError("توکن به Secrets دسترسی ندارد؛ Secrets: Read and write را بده "
+                           "و Actions را در مخزن فعال کن.")
+    return "✅ دسترسی نوشتن و Secrets تایید شد."
+
+
+def wait_run(owner, repo, branch, sha):
     t0 = time.time()
     while time.time() - t0 < BUILD_TIMEOUT:
-        runs = gh("GET", f"/repos/{owner}/{repo}/actions/runs?per_page=1").json().get("workflow_runs", [])
+        runs = gh("GET", f"/repos/{owner}/{repo}/actions/runs",
+                  params={"branch": branch, "head_sha": sha, "per_page": 1}).json().get("workflow_runs", [])
         if runs and runs[0]["status"] == "completed":
             return runs[0]
         time.sleep(20)
@@ -348,7 +379,7 @@ def download_apk(owner, repo, run_id, out_base):
 
 
 # ---------------- ورودی اصلی ----------------
-def build_app(oid, template_zip, link, name, icon_path, progress):
+def build_app(oid, template_zip, link, name, icon_path, progress, repo_full):
     if not GITHUB_TOKEN:
         raise RuntimeError("متغیر GITHUB_TOKEN تنظیم نشده")
     os.makedirs(WORK, exist_ok=True)
@@ -364,22 +395,23 @@ def build_app(oid, template_zip, link, name, icon_path, progress):
     report = patch_project(root, link, name, app_id) + patch_icons(root, icon_path)
     progress("🔧 گزارش اصلاح کد:\n" + "\n".join(report))
 
-    ks_b64, pw = make_keystore(oid)
-    owner = gh("GET", "/user").json()["login"]
-    repo = f"app-{oid}-{secrets.token_hex(3)}"
-    gh("POST", "/user/repos", json={"name": repo, "private": REPO_PRIVATE, "auto_init": False})
-    set_secret(owner, repo, "KS_B64", ks_b64)
-    set_secret(owner, repo, "KS_PASS", pw)
+    owner, repo = repo_full.split("/", 1)
+    branch = f"order-{oid}"
 
+    ks_b64, pw = make_keystore(oid)
     wf = os.path.join(root, ".github", "workflows")
     os.makedirs(wf, exist_ok=True)
     _write(os.path.join(wf, "build.yml"), WORKFLOW)
-    git_push(root, owner, repo)
-    progress(f"📤 کد در مخزن {repo} قرار گرفت. در حال کامپایل (چند دقیقه)...")
 
-    run = wait_run(owner, repo)
-    if run["conclusion"] != "success":
-        raise RuntimeError(f"ساخت ناموفق بود: {run['html_url']}")
-    out = os.path.join(WORK, f"app_{oid}")
-    apk, aab = download_apk(owner, repo, run["id"], out)
-    return apk, aab, f"https://github.com/{owner}/{repo}"
+    with BUILD_LOCK:
+        set_secret(owner, repo, "KS_B64", ks_b64)
+        set_secret(owner, repo, "KS_PASS", pw)
+        sha = git_push(root, owner, repo, branch)
+        progress(f"📤 کد روی branch «{branch}» در {repo_full} قرار گرفت. در حال کامپایل (چند دقیقه)...")
+        run = wait_run(owner, repo, branch, sha)
+        if run["conclusion"] != "success":
+            raise RuntimeError(f"ساخت ناموفق بود: {run['html_url']}")
+        out = os.path.join(WORK, f"app_{oid}")
+        apk, aab = download_apk(owner, repo, run["id"], out)
+
+    return apk, aab, f"https://github.com/{repo_full}/tree/{branch}"
