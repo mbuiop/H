@@ -17,7 +17,7 @@ import httpx
 from nacl import encoding, public
 from PIL import Image
 
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+GITHUB_TOKEN = os.environ.get("APP_BUILDER_GITHUB_TOKEN", "")
 API = "https://api.github.com"
 REPO_PRIVATE = True        # مخزن‌ها خصوصی ساخته شوند
 WORK = "work"
