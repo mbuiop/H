@@ -4,10 +4,10 @@
 
 راه‌اندازی:
   1) pip install -r requirements.txt
-  2) python bot.py      (بار اول فایل .env می‌سازه؛ BOT_TOKEN و ADMIN_IDS رو توش پر کن)
-  3) دوباره: python bot.py
+  2) دو خط MY_BOT_TOKEN و MY_ADMIN_IDS رو همین پایین پر کن
+  3) python bot.py
 
-نکته: توکن رو هرگز داخل کد ننویس؛ فقط داخل فایل .env (که خودکار داخل .gitignore می‌ره).
+هشدار: توکن داخل همین فایله. فایل رو روی گیت‌هاب عمومی نذار و عکسش رو برای کسی نفرست.
 """
 from __future__ import annotations
 
@@ -37,24 +37,20 @@ from aiogram.types import (CallbackQuery, CopyTextButton, InlineKeyboardButton, 
                            Message)
 from cryptography.fernet import Fernet, InvalidToken
 
-# ───────────────────────── تنظیمات (.env) ─────────────────────────
-ENV_FILE = Path(".env")
+# ═══════════════════════════════════════════════════════════════
+#  ✏️ فقط همین دو خط رو پر کن (توکن و آیدی بین گیومه، بدون فاصله‌ی اضافه)
+# ═══════════════════════════════════════════════════════════════
+MY_BOT_TOKEN = ""  # توکن ربات از @BotFather. مثال: "123456789:AAH...xyz"
+MY_ADMIN_IDS = ""  # آیدی عددی ادمین از @userinfobot. چند نفر: "111,222"
+# ═══════════════════════════════════════════════════════════════
 
-
-def load_env() -> None:
-    """مقدارها را از فایل .env می‌خواند (فرمت: KEY=VALUE). متغیرهای محیطی اولویت دارند."""
-    if not ENV_FILE.exists():
-        return
-    for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if line and not line.startswith("#") and "=" in line:
-            k, v = line.split("=", 1)
-            os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+KEY_FILE = Path(".token_key")  # کلید رمزنگاری توکن ربات‌های کاربران؛ خودکار ساخته می‌شود
+BOT_TOKEN_RE = re.compile(r"\d{6,12}:[A-Za-z0-9_-]{30,50}")
 
 
 def protect_secrets() -> None:
-    """جلوگیری از آپلود تصادفی توکن و دیتابیس روی گیت‌هاب."""
-    want = [".env", "bot.db*", "data/", "__pycache__/"]
+    """جلوگیری از آپلود تصادفی کلید و دیتابیس روی گیت‌هاب."""
+    want = [".token_key", ".env", "bot.db*", "data/", "__pycache__/"]
     gi = Path(".gitignore")
     have = gi.read_text(encoding="utf-8").splitlines() if gi.exists() else []
     missing = [w for w in want if w not in have]
@@ -64,20 +60,29 @@ def protect_secrets() -> None:
 
 
 def ensure_config() -> None:
-    load_env()
     protect_secrets()
-    if not ENV_FILE.exists():
-        ENV_FILE.write_text("# توکن ربات از @BotFather\nBOT_TOKEN=\n# آیدی عددی ادمین (از @userinfobot)؛ "
-                            "چند تا با کاما\nADMIN_IDS=\n", encoding="utf-8")
-    if not os.getenv("BOT_TOKEN") or not os.getenv("ADMIN_IDS"):
-        raise SystemExit("\n❗ فایل .env رو باز کن و BOT_TOKEN و ADMIN_IDS رو پر کن (بدون فاصله و گیومه)،\n"
-                         "   بعد دوباره اجرا کن:  python bot.py\n")
-    if not os.getenv("TOKEN_KEY"):  # کلید رمزنگاری توکن ربات‌های کاربران؛ خودکار ساخته می‌شه
-        key = Fernet.generate_key().decode()
-        with ENV_FILE.open("a", encoding="utf-8") as f:
-            f.write(f"\n# کلید رمزنگاری توکن‌ها. گم نشه! یک نسخه پشتیبان بگیر\nTOKEN_KEY={key}\n")
+    token = (MY_BOT_TOKEN or os.getenv("BOT_TOKEN", "")).strip()
+    admins = (MY_ADMIN_IDS or os.getenv("ADMIN_IDS", "")).strip()
+    if not token or not admins:
+        raise SystemExit("\n❗ بالای فایل bot.py دو خط MY_BOT_TOKEN و MY_ADMIN_IDS رو پر کن (بین گیومه)،\n"
+                         "   ذخیره کن و دوباره اجرا کن:  python bot.py\n")
+    if not BOT_TOKEN_RE.fullmatch(token):
+        raise SystemExit("\n❗ توکن درست نیست. باید شبیه 123456789:AAH... باشه و داخل گیومه، بدون فاصله و بدون خط جدید.\n")
+    if not any(x.strip().isdigit() for x in re.split(r"[,\s]+", admins)):
+        raise SystemExit("\n❗ MY_ADMIN_IDS باید آیدی عددی باشه (فقط رقم). مثال: \"327855654\"\n")
+    os.environ["BOT_TOKEN"], os.environ["ADMIN_IDS"] = token, admins
+    if not os.getenv("TOKEN_KEY"):
+        if KEY_FILE.exists():
+            key = KEY_FILE.read_text(encoding="utf-8").strip()
+        else:
+            key = Fernet.generate_key().decode()
+            KEY_FILE.write_text(key, encoding="utf-8")
+            try:
+                KEY_FILE.chmod(0o600)
+            except OSError:
+                pass
+            print("🔑 فایل .token_key ساخته شد (کلید رمزنگاری). حذفش نکن؛ یک نسخه پشتیبان ازش بگیر.")
         os.environ["TOKEN_KEY"] = key
-        print("🔑 TOKEN_KEY ساخته و داخل .env ذخیره شد. یک نسخه پشتیبان ازش بگیر.")
 
 
 ensure_config()
